@@ -1,0 +1,1788 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерфейс Прокачки Атрибутов</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            height: 100%;
+            overflow: hidden; /* Prevent scrollbars on body */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            color: #CBD5E1;
+            margin: 0;
+            position: relative;
+            background-color: #02030A;
+        }
+        #starryBackground {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+        }
+        #loadingIndicator {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #93C5FD;
+            font-size: 1.5rem; z-index: 1000; display: none;
+            text-align: center;
+            background-color: rgba(0,0,0,0.7); padding: 15px 25px; border-radius: 12px;
+        }
+
+        #toggleAttributesPanelBtn {
+            position: fixed;
+            bottom: 25px;
+            right: 20px;
+            z-index: 1003; /* Ensure button is above panel when panel is closed, and can be above when panel is open if positioned correctly */
+            background-color: #374151;
+            color: #E5E7EB;
+            border: none;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            /* Added 'right' to transition for smooth movement */
+            transition: background-color 0.3s ease, transform 0.3s ease, right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        #toggleAttributesPanelBtn:hover {
+            background-color: #4B5563;
+        }
+        #toggleAttributesPanelBtn svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        #attributesPanel {
+            background-color: #E2E8F0;
+            color: #1E293B;
+            z-index: 1002;
+            display: flex; flex-direction: column;
+            box-shadow: -5px 0px 15px rgba(0,0,0,0.2);
+            position: fixed;
+            top: 0;
+            height: 100vh;
+            transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 15px 0 0 15px;
+            padding: 24px;
+            width: 380px;
+            right: -380px; /* Initially off-screen */
+            overflow-y: auto; /* Main scrollbar for the panel */
+            /* Custom scrollbar for the panel itself */
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #E2E8F0;
+        }
+        #attributesPanel::-webkit-scrollbar {
+            width: 8px;
+        }
+        #attributesPanel::-webkit-scrollbar-track {
+            background: #E2E8F0;
+            border-radius: 0 10px 10px 0; /* Rounded track on the inside */
+        }
+        #attributesPanel::-webkit-scrollbar-thumb {
+            background-color: #9ca3af;
+            border-radius: 10px;
+            border: 2px solid #E2E8F0;
+        }
+
+
+        #attributesPanel.open {
+            right: 0; /* Slide in */
+        }
+
+        @media (max-width: 767px) {
+            #attributesPanel {
+                width: 90vw;
+                right: -90vw; /* Initially off-screen for mobile */
+                padding: 16px;
+                border-radius: 10px 0 0 10px;
+            }
+             #attributesPanel.open {
+                right: 0;
+            }
+        }
+
+        .level-rank-display {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #4A5568;
+            flex-shrink: 0;
+        }
+        .level-rank-display .rank-E { color: #718096; }
+        .level-rank-display .rank-D { color: #48BB78; }
+        .level-rank-display .rank-C { color: #4299E1; }
+        .level-rank-display .rank-B { color: #9F7AEA; }
+        .level-rank-display .rank-A { color: #ED8936; }
+        .level-rank-display .rank-S { color: #E53E3E; }
+
+        @media (min-width: 768px) {
+            .level-rank-display {
+                font-size: 1rem;
+                margin-bottom: 16px;
+            }
+        }
+
+        .attribute-buttons-container {
+            flex-shrink: 0;
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        @media (min-width: 768px) {
+            .attribute-buttons-container {
+                margin-bottom: 16px;
+            }
+        }
+
+        .attribute-button {
+            background-color: #E2E8F0; color: #334155; border: 1px solid transparent;
+            transition: all 0.2s ease-in-out; flex-shrink: 0; font-weight: 600;
+            text-transform: none; letter-spacing: 0.02em;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 0.85rem;
+            box-shadow: 3px 3px 6px #c1c9d2, -3px -3px 6px #ffffff;
+            text-align: center;
+            width: 100%;
+        }
+        @media (min-width: 768px) {
+            .attribute-button {
+                padding: 14px 18px;
+                margin-bottom: 10px !important;
+                font-size: 1rem;
+                letter-spacing: 0.025em;
+                border-radius: 12px;
+                box-shadow: 4px 4px 8px #c1c9d2, -4px -4px 8px #ffffff;
+            }
+        }
+        .attribute-button:hover { color: #0EA5E9; box-shadow: 2px 2px 5px #c1c9d2, -2px -2px 5px #ffffff;}
+        .attribute-button.active-attribute {
+            color: #0EA5E9;
+            box-shadow: inset 3px 3px 6px #c1c9d2, inset -3px -3px 6px #ffffff;
+            font-weight: 700;
+        }
+        #canvasContainer {
+            z-index: 0;
+            flex-grow: 1;
+            width: 100%;
+            height: 100%;
+            position:relative;
+        }
+        canvas { display: block; width: 100%; height: 100%;}
+
+        .content-areas-wrapper {
+            flex-grow: 1; /* Takes up available space */
+            /* overflow-y: auto; REMOVED - Panel will scroll */
+            position: relative;
+            min-height: 0; /* Important for flex item to allow parent to scroll */
+        }
+        /* Removed scrollbar styling from here, moved to #attributesPanel */
+
+
+        .attribute-content-area {
+            padding: 10px;
+            display: none;
+            background-color: #E2E8F0;
+        }
+        .attribute-content-area.active { display: block; }
+
+        .content-header {
+            font-size: 1.1rem;
+            font-weight: 600; color: #475569;
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #CBD5E1; text-align: center;
+            flex-shrink: 0;
+        }
+        @media (min-width: 768px) {
+            .content-header {
+                font-size: 1.3rem;
+                margin-bottom: 18px;
+                padding-bottom: 8px;
+            }
+        }
+        .task-item {
+            background-color: #F1F5F9; color: #1E293B;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff;
+        }
+        .task-item span.flex-grow {
+            font-size: 0.85rem;
+            overflow-wrap: break-word;
+            word-break: break-word;
+            margin-bottom: 6px;
+            text-align: left;
+            width: 100%;
+        }
+        @media (min-width: 768px) {
+            .task-item {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                padding: 10px 15px;
+            }
+            .task-item span.flex-grow {
+                font-size: 1rem;
+                margin-bottom: 0;
+                margin-right: 8px;
+                width: auto;
+            }
+        }
+
+        .memory-item {
+            background-color: #F1F5F9; color: #1E293B;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            display: flex; justify-content: space-between; align-items: center;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff;
+        }
+        .memory-item span.flex-grow {
+            font-size: 0.85rem;
+        }
+        @media (min-width: 768px) {
+             .memory-item { padding: 10px 15px; }
+             .memory-item span.flex-grow { font-size: 1rem; }
+        }
+
+        .task-item:hover, .memory-item:hover { box-shadow: 1px 1px 3px #d1d9e6, -1px -1px 3px #ffffff; }
+
+        .task-controls {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            justify-content: space-between;
+        }
+        @media (min-width: 768px) {
+            .task-controls { width: auto; margin-left: auto; justify-content: flex-end; }
+        }
+
+        .task-counter-group { display: flex; align-items: center; }
+        .task-counter-input {
+            width: 40px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: #0EA5E9;
+            background-color: #E2E8F0;
+            border: 1px solid #CBD5E1;
+            border-radius: 5px;
+            margin: 0 4px;
+            padding: 1px 2px;
+            box-shadow: inset 1px 1px 2px #c1c9d2, inset -1px -1px 2px #ffffff;
+        }
+        @media (min-width: 768px) {
+            .task-counter-input {
+                width: 60px;
+                font-size: 1em;
+                margin: 0 8px;
+                padding: 2px 4px;
+                border-radius: 6px;
+            }
+        }
+        .task-counter-input:focus {
+            outline: none;
+            border-color: #93C5FD;
+            box-shadow: inset 1px 1px 2px #c1c9d2, inset -1px -1px 2px #ffffff, 0 0 0 2px #93C5FD;
+        }
+        .task-counter {
+             margin: 0 10px; font-weight: 600; font-size: 1em; color: #0EA5E9;
+        }
+        .plus-btn, .delete-item-btn, .delete-task-btn {
+            background-color: #E2E8F0; color: #475569; border-radius: 6px;
+            width: 24px; height: 24px; font-size: 14px; line-height: 24px;
+            text-align: center;
+            box-shadow: 1px 1px 3px #c1c9d2, -1px -1px 3px #ffffff;
+            margin-left: 4px;
+        }
+        @media (min-width: 768px) {
+            .plus-btn, .delete-item-btn, .delete-task-btn {
+                width: 28px; height: 28px; font-size: 18px; line-height: 28px;
+                margin-left: 6px;
+                border-radius: 8px;
+                box-shadow: 2px 2px 4px #c1c9d2, -2px -2px 4px #ffffff;
+            }
+        }
+        .plus-btn:hover { color: #0284C7; box-shadow: inset 1px 1px 2px #c1c9d2, inset -1px -1px 2px #ffffff; }
+        .delete-item-btn, .delete-task-btn { color: #DC2626; }
+        .delete-item-btn:hover, .delete-task-btn:hover { color: #B91C1C; box-shadow: inset 1px 1px 2px #c1c9d2, inset -1px -1px 2px #ffffff; }
+
+        input[type="text"].task-input {
+            padding: 6px 8px;
+            font-size: 0.9rem;
+            border-radius: 6px; color: #1E293B;
+            flex-grow: 1; margin-right: 6px; background-color: #E2E8F0;
+            border: none; box-shadow: inset 2px 2px 5px #c1c9d2, inset -2px -2px 5px #ffffff;
+        }
+        @media (min-width: 768px) {
+            input[type="text"].task-input {
+                padding: 10px 12px;
+                font-size: 1rem;
+                border-radius: 8px;
+                margin-right: 8px;
+            }
+        }
+         input[type="text"].task-input:focus {
+            outline: none;
+            box-shadow: inset 3px 3px 7px #c1c9d2, inset -3px -3px 7px #ffffff, 0 0 0 2px #93C5FD;
+        }
+        .add-task-btn {
+            padding: 6px 10px;
+            font-size: 0.9rem;
+            border-radius: 6px; font-weight: 600; text-transform: none;
+            color: #334155; background-color: #E2E8F0; border: none;
+            box-shadow: 2px 2px 4px #c1c9d2, -2px -2px 4px #ffffff;
+            flex-shrink: 0;
+        }
+         @media (min-width: 768px) {
+            .add-task-btn {
+                padding: 10px 15px;
+                font-size: 1rem;
+                border-radius: 8px;
+                box-shadow: 3px 3px 6px #c1c9d2, -3px -3px 6px #ffffff;
+            }
+        }
+        .add-task-btn:hover { color: #0EA5E9; box-shadow: 1px 1px 3px #d1d9e6, -1px -1px 3px #ffffff;}
+        .intellect-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-bottom: 10px;
+        }
+        .intellect-tabs button {
+            padding: 6px 8px;
+            font-size: 0.75rem;
+            border-radius: 6px; background-color: #CBD5E1;
+            color: #475569; border: none; cursor: pointer;
+            box-shadow: 2px 2px 4px #b8c1cb, -2px -2px 4px #ffffff;
+            font-weight: 500;
+        }
+        .intellect-tabs button.active-tab {
+            background-color: #E2E8F0; color: #0EA5E9;
+            box-shadow: inset 2px 2px 4px #c1c9d2, inset -2px -2px 4px #ffffff;
+            font-weight: 600;
+        }
+        .intellect-tabs button:hover { color: #0EA5E9; }
+        .intellect-tab-content { display: none; margin-top: 8px; }
+        .intellect-tab-content.active { display: block; }
+
+        .app-wrapper {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #messageArea {
+            font-size: 0.8rem;
+            height: 40px;
+            padding: 6px;
+            flex-shrink: 0;
+            text-align: center;
+             border-top: 1px solid #CBD5E1;
+             color: #475569;
+             font-weight: 500;
+        }
+        @media (min-width: 768px) {
+            #messageArea {
+                font-size: 0.875rem;
+                height: 48px;
+                padding: 0.75rem;
+            }
+        }
+        #levelUpText {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.5);
+            font-family: 'Roboto Condensed', sans-serif;
+            font-size: 3rem;
+            font-weight: 700;
+            color: #FFF;
+            text-shadow:
+                0 0 5px #FFF,
+                0 0 10px #FFF,
+                0 0 15px #FFF,
+                0 0 20px #00A8FF,
+                0 0 35px #00A8FF,
+                0 0 40px #00A8FF,
+                0 0 50px #00A8FF,
+                0 0 75px #00A8FF;
+            opacity: 0;
+            transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.4s ease-out;
+            pointer-events: none;
+            z-index: 990;
+        }
+        #levelUpText.show {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
+         @media (min-width: 768px) {
+            #levelUpText {
+                font-size: 4.5rem;
+                 top: 50%;
+            }
+        }
+    </style>
+</head>
+<body class="app-wrapper">
+
+    <canvas id="starryBackground"></canvas>
+
+    <div id="canvasContainer" class="flex-grow relative">
+        <div id="loadingIndicator">Загрузка 3D модели...</div>
+        <div id="levelUpText">УРОВЕНЬ ПОВЫШЕН!</div>
+    </div>
+
+    <div id="attributesPanel">
+        <h2 class="text-lg md:text-2xl font-semibold mb-2 md:mb-4 text-slate-700 text-center flex-shrink-0">Атрибуты</h2>
+        <div id="levelRankDisplay" class="level-rank-display">Уровень: 0 (Ранг: E)</div>
+        <div class="attribute-buttons-container flex-shrink-0">
+            <button id="spiritualBtn" data-attribute="spiritual" class="attribute-button">Духовность</button>
+            <button id="intellectBtn" data-attribute="intellect" class="attribute-button">Интеллект</button>
+            <button id="combatBtn" data-attribute="combat" class="attribute-button">Боевые навыки</button>
+        </div>
+
+        <div class="content-areas-wrapper">
+            <div id="spiritualContent" class="attribute-content-area">
+                <h3 class="content-header">Духовные Практики</h3>
+                <div class="flex mb-3"><input type="text" id="newSpiritualTaskInput" class="task-input flex-grow" placeholder="Новая практика..."><button id="addSpiritualTaskBtn" class="add-task-btn ml-2">Добавить</button></div>
+                <div id="spiritualTaskList"></div>
+            </div>
+
+            <div id="intellectContent" class="attribute-content-area">
+                <h3 class="content-header">Развитие Интеллекта</h3>
+                <div class="intellect-tabs">
+                    <button data-tab="memory" class="active-tab">Память</button>
+                    <button data-tab="analysis">Анализ</button>
+                    <button data-tab="tafakkur">Тафаккур</button>
+                </div>
+                <div id="memoryTabContent" class="intellect-tab-content active">
+                    <h4 class="text-base md:text-lg font-semibold mb-2 md:mb-3 text-slate-600">Выучить:</h4>
+                    <div class="flex mb-2 md:mb-3"><input type="text" id="newMemoryToLearnInput" class="task-input flex-grow" placeholder="Что нужно выучить..."><button id="addMemoryToLearnBtn" class="add-task-btn ml-2">Добавить</button></div>
+                    <div id="memoryToLearnList" class="mb-3 md:mb-4"></div>
+                    <h4 class="text-base md:text-lg font-semibold mb-2 md:mb-3 text-slate-600">Выучено:</h4>
+                    <div class="flex mb-2 md:mb-3"><input type="text" id="newMemoryLearnedInput" class="task-input flex-grow" placeholder="Что уже выучено..."><button id="addMemoryLearnedBtn" class="add-task-btn ml-2">Добавить</button></div>
+                    <div id="memoryLearnedList"></div>
+                </div>
+                <div id="analysisTabContent" class="intellect-tab-content">
+                    <h4 class="text-base md:text-lg font-semibold mb-2 md:mb-3 text-slate-600">Аналитические Задачи:</h4>
+                    <div class="flex mb-2 md:mb-3"><input type="text" id="newAnalysisTaskInput" class="task-input flex-grow" placeholder="Новая задача..."><button id="addAnalysisTaskBtn" class="add-task-btn ml-2">Добавить</button></div>
+                    <div id="analysisTaskList"></div>
+                </div>
+                <div id="tafakkurTabContent" class="intellect-tab-content">
+                    <h4 class="text-base md:text-lg font-semibold mb-2 md:mb-3 text-slate-600">Темы для Размышления:</h4>
+                    <div class="flex mb-2 md:mb-3"><input type="text" id="newTafakkurTaskInput" class="task-input flex-grow" placeholder="Новая тема..."><button id="addTafakkurTaskBtn" class="add-task-btn ml-2">Добавить</button></div>
+                    <div id="tafakkurTaskList"></div>
+                </div>
+            </div>
+
+            <div id="combatContent" class="attribute-content-area">
+                <h3 class="content-header">Боевые Тренировки</h3>
+                <div class="flex mb-3"><input type="text" id="newCombatTaskInput" class="task-input flex-grow" placeholder="Новая тренировка..."><button id="addCombatTaskBtn" class="add-task-btn ml-2">Добавить</button></div>
+                <div id="combatTaskList"></div>
+            </div>
+        </div>
+        <div id="messageArea" class="mt-auto text-slate-500 border-t border-slate-300 flex-shrink-0"></div>
+    </div>
+
+    <button id="toggleAttributesPanelBtn">
+        <svg id="openPanelIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
+        </svg>
+        <svg id="closePanelIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="display: none;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+    </button>
+
+
+    <script>
+        // JavaScript code for Attribute Leveling Interface v9.65 (Aura Fade Update)
+        console.log("Запуск скрипта. v9.65 (Плавное Исчезновение Аур)");
+        // --- Global Variables ---
+        let scene, camera, renderer, loadedModel, controls;
+        let intellectAuraGroup, combatAuraGroup, spiritualAuraGroup, groundImpulseGroup;
+
+        const AURA_BOLT_LIFETIME = 700;
+        const AURA_BOLT_COLOR_BASE = new THREE.Color(0x0077FF);
+        const AURA_BOLT_COLOR_BRIGHT = new THREE.Color(0x66B2FF);
+        const MAX_TOTAL_BOLTS = 50;
+        let currentIntellectPoints = 0;
+
+        const FLAME_COLOR_START = new THREE.Color(0xFF4500);
+        const FLAME_COLOR_END = new THREE.Color(0xFF8C00);
+
+        const SPIRIT_COLOR = new THREE.Color(0xFFFFFF);
+
+        const IMPULSE_COLOR = new THREE.Color(0x44AAFF);
+        const IMPULSE_DURATION = 800;
+        const IMPULSE_MAX_RADIUS = 2.5;
+        const IMPULSE_RING_THICKNESS = 0.05;
+
+        const appData = {
+            spiritual: { tasks: []},
+            intellect: { memory: { toLearn: [], learned: [] }, analysis: { tasks: [] }, tafakkur: { tasks: [] }},
+            combat: { tasks: [] }
+        };
+        let nextTaskId = 0;
+
+        let characterLevel = 0;
+        let currentRank = "E";
+        const POINTS_PER_LEVEL = 10;
+        const rankThresholds = { E: 0, D: 5, C: 10, B: 20, A: 30, S: 50 };
+        const rankColors = { E: "#718096", D: "#48BB78", C: "#4299E1", B: "#9F7AEA", A: "#ED8936", S: "#E53E3E" };
+
+        const canvasContainer = document.getElementById('canvasContainer');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const messageArea = document.getElementById('messageArea');
+        const spiritualBtn = document.getElementById('spiritualBtn');
+        const intellectBtn = document.getElementById('intellectBtn');
+        const combatBtn = document.getElementById('combatBtn');
+        const attributesPanel = document.getElementById('attributesPanel');
+        const toggleAttributesPanelBtn = document.getElementById('toggleAttributesPanelBtn');
+        const openPanelIcon = document.getElementById('openPanelIcon');
+        const closePanelIcon = document.getElementById('closePanelIcon');
+        const levelRankDisplay = document.getElementById('levelRankDisplay');
+        const levelUpTextElement = document.getElementById('levelUpText');
+
+        const attributeContentAreas = {
+            spiritual: document.getElementById('spiritualContent'),
+            intellect: document.getElementById('intellectContent'),
+            combat: document.getElementById('combatContent')
+        };
+
+        let starryCanvas, starryCtx;
+        const stars = [];
+        const numStars = 200;
+        let watchingEyes = [];
+        const EYE_LIFETIME_MIN = 3000;
+        const EYE_LIFETIME_MAX = 5000;
+        const EYE_CREATION_INTERVAL_MIN = 10000;
+        const EYE_CREATION_INTERVAL_MAX = 25000;
+        let lastEyeCreationTime = 0;
+        let nextEyeCreationDelay = Math.random() * (EYE_CREATION_INTERVAL_MAX - EYE_CREATION_INTERVAL_MIN) + EYE_CREATION_INTERVAL_MIN;
+
+        let clock;
+        let lastImpulseCreationTime = 0;
+        const IMPULSE_INTERVAL = 2.0;
+
+        function initStarryBackground() {
+            console.log("FN_INIT_STARRY_BG: Инициализация звездного фона...");
+            starryCanvas = document.getElementById('starryBackground');
+            if (!starryCanvas) { console.warn("FN_INIT_STARRY_BG_WARN: Холст для звезд не найден! Фон будет темным."); return; }
+            starryCtx = starryCanvas.getContext('2d');
+            if (!starryCtx) { console.warn("FN_INIT_STARRY_BG_WARN: Контекст холста для звезд не найден!"); return; }
+
+            starryCanvas.width = window.innerWidth;
+            starryCanvas.height = window.innerHeight;
+
+            for (let i = 0; i < numStars; i++) {
+                stars.push({
+                    x: Math.random() * starryCanvas.width,
+                    y: Math.random() * starryCanvas.height,
+                    radius: Math.random() * 1.2,
+                    alpha: 0.5 + Math.random() * 0.5,
+                    twinkleSpeed: Math.random() * 0.02 + 0.005,
+                    twinklePhase: Math.random() * Math.PI * 2
+                });
+            }
+            animateStarryBackground();
+            console.log("FN_INIT_STARRY_BG: Звездный фон инициализирован.");
+        }
+        function animateStarryBackground() {
+            if (!starryCtx || !starryCanvas) return;
+            starryCtx.fillStyle = '#02030A';
+            starryCtx.fillRect(0, 0, starryCanvas.width, starryCanvas.height);
+
+            stars.forEach(star => {
+                star.twinklePhase += star.twinkleSpeed;
+                const currentAlpha = star.alpha * (0.6 + Math.sin(star.twinklePhase) * 0.4);
+
+                starryCtx.beginPath();
+                starryCtx.arc(star.x, star.y, star.radius, 0, Math.PI * 2, false);
+                starryCtx.fillStyle = `rgba(220, 220, 255, ${currentAlpha})`;
+                starryCtx.fill();
+            });
+            if (watchingEyes.length > 0) {
+                drawWatchingEyes();
+            }
+            requestAnimationFrame(animateStarryBackground);
+        }
+
+        function addPlaceholderObject() {
+            const geometry = new THREE.BoxGeometry(1, 1.8, 0.5);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0x607D8B,
+                roughness: 0.6,
+                metalness: 0.3
+            });
+            const placeholder = new THREE.Mesh(geometry, material);
+            placeholder.position.y = 1.8 / 2;
+            scene.add(placeholder);
+            loadedModel = placeholder;
+            showUserMessage("3D модель не загружена. Отображается заменитель.", "warning");
+            if(loadingIndicator) loadingIndicator.style.display = 'none';
+        }
+
+        function init() {
+            console.log("FN_INIT: Инициализация 3D сцены...");
+            if (!canvasContainer) {
+                console.error("FN_INIT_ERROR: canvasContainer не найден! Прерывание инициализации.");
+                showUserMessage("Критическая ошибка: контейнер для 3D не найден!", "error");
+                return;
+            }
+
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
+            camera.position.set(0, 1.2, 3.2);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            canvasContainer.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+            scene.add(ambientLight);
+            const directionalLight1 = new THREE.DirectionalLight(0xffffff, 1.2);
+            directionalLight1.position.set(5, 10, 7);
+            scene.add(directionalLight1);
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.7);
+            directionalLight2.position.set(-5, 8, -5);
+            scene.add(directionalLight2);
+            const frontLight = new THREE.PointLight(0xa0c0ff, 0.6, 10);
+            frontLight.position.set(0, 0.5, 3);
+            scene.add(frontLight);
+
+            intellectAuraGroup = new THREE.Group(); scene.add(intellectAuraGroup);
+            combatAuraGroup = new THREE.Group();    scene.add(combatAuraGroup);
+            spiritualAuraGroup = new THREE.Group(); scene.add(spiritualAuraGroup);
+            groundImpulseGroup = new THREE.Group(); scene.add(groundImpulseGroup);
+
+            clock = new THREE.Clock();
+
+            const loader = new THREE.GLTFLoader();
+            const modelUrl = 'https://firdavs39.github.io/3/scene.gltf';
+            if (loadingIndicator) loadingIndicator.style.display = 'block';
+            if (loadingIndicator) loadingIndicator.textContent = 'Загрузка 3D модели...';
+            showUserMessage("Загрузка 3D модели...", "info");
+
+            loader.load(modelUrl,
+                function (gltf) {
+                    loadedModel = gltf.scene;
+                    loadedModel.name = "importedHumanoid";
+
+                    loadedModel.traverse(function (child) {
+                        if (child.isMesh) {
+                            child.material = new THREE.MeshStandardMaterial({
+                                color: 0x0077BE,
+                                transparent: true, opacity: 0.80,
+                                metalness: 0.5, roughness: 0.4,
+                                emissive: 0x002244,
+                                emissiveIntensity: 0.4,
+                                depthWrite: true, side: THREE.DoubleSide
+                            });
+                        }
+                    });
+
+                    const box = new THREE.Box3().setFromObject(loadedModel);
+                    const center = box.getCenter(new THREE.Vector3());
+                    const size = box.getSize(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    let scaleFactor = 1.0;
+                    if (maxDim > 0.001 && isFinite(maxDim)) { scaleFactor = 1.8 / maxDim; }
+                    else { scaleFactor = 0.5; }
+
+                    loadedModel.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                    const scaledCenterOffset = center.clone().multiplyScalar(scaleFactor);
+                    loadedModel.position.sub(scaledCenterOffset);
+
+                    const finalBox = new THREE.Box3().setFromObject(loadedModel);
+                    loadedModel.position.y -= finalBox.min.y;
+
+                    scene.add(loadedModel);
+                    if(loadingIndicator) loadingIndicator.style.display = 'none';
+                    showUserMessage("Модель загружена.", "success");
+
+                    if (controls) {
+                        const worldBox = new THREE.Box3().setFromObject(loadedModel);
+                        const worldModelCenter = worldBox.getCenter(new THREE.Vector3());
+                        controls.target.copy(worldModelCenter);
+                    }
+                },
+                (xhr) => {
+                    if (loadingIndicator) {
+                        if (xhr.lengthComputable && xhr.total > 0) {
+                            loadingIndicator.textContent = `Загрузка: ${Math.round(xhr.loaded / xhr.total * 100)}%`;
+                        } else {
+                            loadingIndicator.textContent = `Загружено: ${Math.round(xhr.loaded / 1024)} KB`;
+                        }
+                    }
+                },
+                (error) => {
+                    console.error('Ошибка загрузки 3D модели:', error);
+                    if(loadingIndicator) {
+                         loadingIndicator.innerHTML = 'Ошибка загрузки 3D модели!<br>Проверьте консоль (F12) и URL модели.';
+                         loadingIndicator.style.color = '#FF5555';
+                    }
+                    showUserMessage('Ошибка загрузки 3D модели! Проверьте консоль (F12).', 'error');
+                    addPlaceholderObject();
+                }
+            );
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 0.5; controls.maxDistance = 20;
+
+            window.addEventListener('resize', onWindowResize, false);
+            setupEventListeners();
+            updateCharacterLevelAndRank();
+            animate();
+
+            try { initStarryBackground(); } catch(e) { console.error("Ошибка инициализации звездного фона:", e); }
+
+            switchAttributeContent('intellect');
+            console.log("FN_INIT: Инициализация завершена.");
+        };
+
+        onWindowResize = function() {
+            if (!canvasContainer || !renderer || !camera) return;
+
+            const newWidth = canvasContainer.clientWidth;
+            const newHeight = canvasContainer.clientHeight;
+
+            if (newWidth === 0 || newHeight === 0) {
+                console.warn("onWindowResize: Ширина или высота контейнера равна нулю.");
+                return;
+            }
+
+            camera.aspect = newWidth / newHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(newWidth, newHeight);
+
+            if (starryCanvas) {
+                starryCanvas.width = window.innerWidth;
+                starryCanvas.height = window.innerHeight;
+            }
+            if (renderer && scene && camera) { renderer.render(scene, camera); }
+        };
+
+        animate = function() {
+            requestAnimationFrame(animate);
+            if (controls) controls.update();
+
+            const elapsedTime = clock.getElapsedTime();
+            const deltaTime = clock.getDelta();
+
+            if (loadedModel && elapsedTime - lastImpulseCreationTime > IMPULSE_INTERVAL) {
+                createGroundImpulse();
+                lastImpulseCreationTime = elapsedTime;
+            }
+
+            animateIntellectAura();
+            animateCombatAura();
+            animateSpiritualAura();
+            animateGroundImpulses();
+            animateWatchingEyes(deltaTime);
+
+            if (renderer && scene && camera) { renderer.render(scene, camera); }
+        };
+
+        const impulseVertexShader = `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `;
+
+        const impulseFragmentShader = `
+            varying vec2 vUv;
+            uniform float uProgress;
+            uniform vec3 uColor;
+            uniform float uRingFalloff;
+            uniform float uOverallAlpha;
+
+            void main() {
+                float radialIntensity = pow(1.0 - vUv.y, uRingFalloff);
+                float alpha = uOverallAlpha * radialIntensity * (1.0 - pow(uProgress, 2.0));
+                gl_FragColor = vec4(uColor, alpha);
+            }
+        `;
+
+        function createGroundImpulse() {
+            if (!loadedModel || !groundImpulseGroup) return;
+
+            const modelBox = new THREE.Box3().setFromObject(loadedModel);
+            const modelBaseY = modelBox.min.y;
+
+            const impulseGeometry = new THREE.RingGeometry(
+                0.01, IMPULSE_MAX_RADIUS, 64, 1, 0, Math.PI * 2
+            );
+
+            const impulseMaterial = new THREE.ShaderMaterial({
+                vertexShader: impulseVertexShader,
+                fragmentShader: impulseFragmentShader,
+                uniforms: {
+                    uProgress: { value: 0.0 },
+                    uColor: { value: IMPULSE_COLOR },
+                    uRingFalloff: { value: 2.5 },
+                    uOverallAlpha: { value: 0.8 }
+                },
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+
+            const impulseMesh = new THREE.Mesh(impulseGeometry, impulseMaterial);
+            impulseMesh.position.set(loadedModel.position.x, modelBaseY + 0.01, loadedModel.position.z);
+            impulseMesh.rotation.x = -Math.PI / 2;
+            impulseMesh.scale.set(0.01, 0.01, 0.01);
+
+            impulseMesh.userData = {
+                startTime: clock.getElapsedTime(),
+                duration: IMPULSE_DURATION,
+                maxRadiusScale: 1.0
+            };
+
+            groundImpulseGroup.add(impulseMesh);
+        }
+
+        function animateGroundImpulses() {
+            if (!groundImpulseGroup) return;
+            const currentTime = clock.getElapsedTime();
+
+            for (let i = groundImpulseGroup.children.length - 1; i >= 0; i--) {
+                const impulse = groundImpulseGroup.children[i];
+                const elapsedTimeSinceStart = currentTime - impulse.userData.startTime;
+                let progress = elapsedTimeSinceStart / (impulse.userData.duration / 1000);
+
+                if (progress >= 1.0) {
+                    groundImpulseGroup.remove(impulse);
+                    impulse.geometry.dispose();
+                    impulse.material.dispose();
+                    continue;
+                }
+
+                progress = Math.min(progress, 1.0);
+
+                const currentScale = progress * impulse.userData.maxRadiusScale;
+                impulse.scale.set(currentScale, currentScale, currentScale);
+
+                impulse.material.uniforms.uProgress.value = progress;
+                impulse.material.uniforms.uOverallAlpha.value = 0.8 * (1.0 - Math.pow(progress, 2.5));
+            }
+        }
+
+        createLightningBolt = function(group) {
+            if (!loadedModel) return;
+
+            const points = [];
+            const modelBox = new THREE.Box3().setFromObject(loadedModel);
+            const modelSize = modelBox.getSize(new THREE.Vector3());
+            const modelCenter = modelBox.getCenter(new THREE.Vector3());
+
+            const radiusScale = 0.55 + Math.random() * 0.2;
+            const radius = Math.max(modelSize.x, modelSize.y, modelSize.z) * radiusScale;
+            const phi = Math.random() * Math.PI * 2;
+            const theta = Math.acos((Math.random() * 2) - 1);
+
+            const startPos = new THREE.Vector3(
+                radius * Math.sin(theta) * Math.cos(phi),
+                radius * Math.sin(theta) * Math.sin(phi),
+                radius * Math.cos(theta)
+            ).add(modelCenter);
+            points.push(startPos);
+
+            let currentPos = startPos.clone();
+            const numSegments = 4 + Math.floor(Math.random() * 5);
+            createBranch(points, currentPos, numSegments, 1 + Math.floor(Math.random()*2) );
+
+            if (points.length < 2) return;
+
+            const isBrightBolt = Math.random() < 0.25;
+            let boltColor = AURA_BOLT_COLOR_BASE.clone();
+            let boltLinewidth = 0.8 + Math.random() * 1.2;
+            let boltOpacity = 0.4 + Math.random() * 0.4;
+
+            if (isBrightBolt) {
+                boltColor = AURA_BOLT_COLOR_BRIGHT.clone();
+                boltLinewidth = 1.8 + Math.random() * 1.5;
+                boltOpacity = 0.7 + Math.random() * 0.3;
+            }
+
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({
+                color: boltColor,
+                linewidth: boltLinewidth,
+                transparent: true,
+                opacity: boltOpacity
+            });
+            const bolt = new THREE.Line(geometry, material);
+            bolt.userData.life = AURA_BOLT_LIFETIME * (0.7 + Math.random() * 0.6) ;
+            bolt.userData.originalPositions = geometry.attributes.position.clone();
+            bolt.userData.isBright = isBrightBolt;
+
+            if(group) group.add(bolt);
+            else console.warn("createLightningBolt: группа для добавления молнии не определена");
+        };
+
+        createBranch = function(pointsArray, startPoint, segments, depth) {
+            if (depth <= 0) return;
+
+            let current = startPoint.clone();
+            const segmentLengthBase = (0.1 + Math.random() * 0.15) / (depth);
+
+            for (let i = 0; i < segments; i++) {
+                const segmentLength = segmentLengthBase * (0.7 + Math.random() * 0.6);
+                const deviationAngle = Math.PI / 3;
+
+                let direction;
+                if (pointsArray.length > 1) {
+                    direction = new THREE.Vector3().subVectors(pointsArray[pointsArray.length-1], pointsArray[pointsArray.length-2]).normalize();
+                } else {
+                    direction = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
+                }
+
+                const randomRotation = new THREE.Euler(
+                    (Math.random() - 0.5) * deviationAngle,
+                    (Math.random() - 0.5) * deviationAngle,
+                    (Math.random() - 0.5) * deviationAngle
+                );
+                direction.applyEuler(randomRotation).multiplyScalar(segmentLength);
+
+                const next = current.clone().add(direction);
+                pointsArray.push(next);
+
+                if (Math.random() < (0.5 / depth) && i < segments -1 && depth > 1) {
+                    createBranch(pointsArray, next, Math.max(1, segments - 2), depth -1);
+                     pointsArray.push(next);
+                }
+                current = next;
+            }
+        };
+
+        function updateIntellectAura(points = 1) {
+            currentIntellectPoints += points;
+            currentIntellectPoints = Math.max(0, currentIntellectPoints);
+            updateCharacterLevelAndRank();
+        }
+
+        function animateIntellectAura() {
+             if (!intellectAuraGroup || !loadedModel) return;
+
+            for (let i = intellectAuraGroup.children.length - 1; i >= 0; i--) {
+                const bolt = intellectAuraGroup.children[i];
+                bolt.userData.life -= 16;
+                if (bolt.userData.life <= 0) {
+                    intellectAuraGroup.remove(bolt);
+                    bolt.geometry.dispose();
+                    bolt.material.dispose();
+                } else {
+                    const lifeRatio = bolt.userData.life / AURA_BOLT_LIFETIME;
+                    bolt.material.opacity = (bolt.userData.isBright ? 0.7 + 0.3 * Math.random() : 0.4 + 0.4 * Math.random()) * lifeRatio;
+                    const positions = bolt.geometry.attributes.position;
+                    const originalPositions = bolt.userData.originalPositions;
+                    const jitterAmount = (bolt.userData.isBright ? 0.05 : 0.035) * lifeRatio;
+                    for (let j = 0; j < positions.count; j++) {
+                        const currentJitter = (j > 0 && j < positions.count -1) ? jitterAmount : jitterAmount * 0.3;
+                        positions.setXYZ(
+                            j,
+                            originalPositions.getX(j) + (Math.random() - 0.5) * currentJitter,
+                            originalPositions.getY(j) + (Math.random() - 0.5) * currentJitter,
+                            originalPositions.getZ(j) + (Math.random() - 0.5) * currentJitter
+                        );
+                    }
+                    positions.needsUpdate = true;
+                 }
+            }
+
+            const targetBoltCount = Math.floor(currentIntellectPoints * 2);
+            const currentBoltCount = intellectAuraGroup.children.length;
+            const boltsToActuallyAdd = Math.min(2, targetBoltCount - currentBoltCount);
+
+            if (currentBoltCount < Math.min(targetBoltCount, MAX_TOTAL_BOLTS) && boltsToActuallyAdd > 0) {
+                for(let k=0; k < boltsToActuallyAdd ; k++){
+                     createLightningBolt(intellectAuraGroup);
+                }
+            }
+        };
+
+        let currentCombatLevel = 0;
+
+        function handleCombatTaskCountChange(taskId, newCountString) {
+            const task = appData.combat.tasks.find(t => t.id == taskId);
+            if (!task) return;
+
+            const newCount = parseInt(newCountString, 10);
+            if (isNaN(newCount) || newCount < 0) {
+                const inputElement = document.querySelector(`.task-counter-input[data-task-id="${taskId}"][data-attribute="combat"]`);
+                if (inputElement) inputElement.value = task.count;
+                return;
+            }
+
+            const oldCount = task.count;
+            const diff = newCount - oldCount;
+            task.count = newCount;
+
+            if (diff > 0) {
+                for (let i = 0; i < diff; i++) { createFlameParticle(); }
+            } else if (diff < 0) {
+                const particlesToRemove = Math.abs(diff);
+                for (let i = 0; i < particlesToRemove && combatAuraGroup.children.length > 0; i++) {
+                    const particleToRemove = combatAuraGroup.children[combatAuraGroup.children.length - 1 - i];
+                    if (particleToRemove) {
+                         combatAuraGroup.remove(particleToRemove);
+                         particleToRemove.geometry.dispose();
+                         if (particleToRemove.material.map) particleToRemove.material.map.dispose();
+                         particleToRemove.material.dispose();
+                    }
+                }
+            }
+            recalculateAndDisplayCombatLevel();
+            updateCharacterLevelAndRank();
+        }
+
+        function recalculateAndDisplayCombatLevel() {
+            let totalCombatPoints = 0;
+            appData.combat.tasks.forEach(task => {
+                totalCombatPoints += parseInt(task.count, 10) || 0;
+            });
+            currentCombatLevel = totalCombatPoints;
+            showUserMessage(`Аура Силы: ${currentCombatLevel.toFixed(0)}`, "success", 1000);
+        }
+
+        createFlameParticle = function() {
+            if (!loadedModel || !combatAuraGroup) return;
+
+            const modelBox = new THREE.Box3().setFromObject(loadedModel);
+            const modelCenter = modelBox.getCenter(new THREE.Vector3());
+            const modelSize = modelBox.getSize(new THREE.Vector3());
+            const modelBaseY = modelCenter.y - modelSize.y * 0.5;
+            const modelHeadY = modelCenter.y + modelSize.y * 0.4;
+
+            const particleGeometry = new THREE.BufferGeometry();
+            const particleMaterial = new THREE.PointsMaterial({
+                size: 0.08 + Math.random() * 0.04,
+                map: createFlameTexture(false),
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                transparent: true,
+                opacity: 0.85, // Initial opacity
+                vertexColors: true
+            });
+
+            const startY = modelBaseY + Math.random() * 0.2;
+            const startRadius = modelSize.x * 0.25 + Math.random() * modelSize.x * 0.15;
+            const startAngle = Math.random() * Math.PI * 2;
+
+            const position = new Float32Array([
+                modelCenter.x + Math.cos(startAngle) * startRadius,
+                startY,
+                modelCenter.z + Math.sin(startAngle) * startRadius
+            ]);
+            particleGeometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
+
+            const flameColor = new THREE.Color().lerpColors(FLAME_COLOR_START, FLAME_COLOR_END, Math.random());
+            const colors = new Float32Array([flameColor.r, flameColor.g, flameColor.b]);
+            particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+
+            const particle = new THREE.Points(particleGeometry, particleMaterial);
+            particle.userData = {
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.003,
+                    0.020 + Math.random() * 0.012,
+                    (Math.random() - 0.5) * 0.003
+                ),
+                initialY: startY,
+                initialOpacity: particleMaterial.opacity, // Store initial opacity
+                initialSize: particleMaterial.size,
+                maxHeight: modelHeadY + modelSize.y * 0.6,
+                modelCenter: modelCenter.clone(),
+                baseRadius: startRadius,
+                initialColor: flameColor.clone(),
+                modelSizeY: modelSize.y // Store modelSize.y for fade calculation
+            };
+            if (combatAuraGroup) combatAuraGroup.add(particle);
+        };
+
+        createFlameTexture = function(isWhite = false) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const context = canvas.getContext('2d');
+
+            const gradient = context.createRadialGradient(
+                canvas.width / 2, canvas.height / 2, 0,
+                canvas.width / 2, canvas.height / 2, canvas.width / 2
+            );
+
+            if (isWhite) {
+                gradient.addColorStop(0, 'rgba(255,255,255,1)');
+                gradient.addColorStop(0.3, 'rgba(255,255,255,0.8)');
+                gradient.addColorStop(0.7, 'rgba(255,255,255,0.3)');
+                gradient.addColorStop(1, 'rgba(255,255,255,0)');
+            } else {
+                gradient.addColorStop(0, 'rgba(255,255,200,1)');
+                gradient.addColorStop(0.2, 'rgba(255,200,0,1)');
+                gradient.addColorStop(0.5, 'rgba(255,100,0,0.8)');
+                gradient.addColorStop(0.8, 'rgba(255,0,0,0.5)');
+                gradient.addColorStop(1, 'rgba(150,0,0,0)');
+            }
+
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            return new THREE.CanvasTexture(canvas);
+        };
+
+        animateCombatAura = function() {
+            if (!combatAuraGroup || !loadedModel) return;
+
+            for (let i = combatAuraGroup.children.length - 1; i >= 0; i--) {
+                const particle = combatAuraGroup.children[i];
+                const userData = particle.userData;
+                const fadeDistance = userData.modelSizeY * 0.25; // Start fading over last 25% of modelSizeY before maxHeight
+
+                particle.position.add(userData.velocity);
+
+                if (particle.position.y > userData.maxHeight) { // Particle is well past its max height, reset it
+                    particle.position.y = userData.initialY;
+                    const resetAngle = Math.random() * Math.PI * 2;
+                    const resetRadius = userData.baseRadius * (0.8 + Math.random() * 0.4);
+                    particle.position.x = userData.modelCenter.x + Math.cos(resetAngle) * resetRadius;
+                    particle.position.z = userData.modelCenter.z + Math.sin(resetAngle) * resetRadius;
+
+                    particle.material.opacity = userData.initialOpacity;
+                    particle.material.size = userData.initialSize;
+
+                    if (particle.geometry.attributes.color && userData.initialColor) {
+                        const colors = particle.geometry.attributes.color;
+                        colors.setXYZ(0, userData.initialColor.r, userData.initialColor.g, userData.initialColor.b);
+                        colors.needsUpdate = true;
+                    }
+                    userData.velocity.y = 0.020 + Math.random() * 0.012;
+
+                } else if (particle.position.y > userData.maxHeight - fadeDistance) { // Particle is in the fade zone
+                    // Calculate progress within the fade zone (0 = start of fade, 1 = at maxHeight)
+                    const progressInFadeZone = (particle.position.y - (userData.maxHeight - fadeDistance)) / fadeDistance;
+                    particle.material.opacity = userData.initialOpacity * (1 - Math.min(1, Math.max(0, progressInFadeZone)));
+                } else { // Particle is below fade zone, normal opacity
+                    particle.material.opacity = userData.initialOpacity;
+                }
+            }
+        };
+
+        let currentSpiritualLevel = 0;
+
+        function handleSpiritualTaskCountChange(taskId, newCountString) {
+            const task = appData.spiritual.tasks.find(t => t.id == taskId);
+            if (!task) return;
+
+            const newCount = parseInt(newCountString, 10);
+            if (isNaN(newCount) || newCount < 0) {
+                const inputElement = document.querySelector(`.task-counter-input[data-task-id="${taskId}"][data-attribute="spiritual"]`);
+                if (inputElement) inputElement.value = task.count;
+                return;
+            }
+
+            const oldCount = task.count;
+            const diff = newCount - oldCount;
+            task.count = newCount;
+
+            if (diff > 0) {
+                for (let i = 0; i < diff; i++) {
+                    createSpiritParticle();
+                }
+            } else if (diff < 0) {
+                const particlesToRemove = Math.abs(diff);
+                 for (let i = 0; i < particlesToRemove && spiritualAuraGroup.children.length > 0; i++) {
+                    const particleToRemove = spiritualAuraGroup.children[spiritualAuraGroup.children.length - 1 - i];
+                     if (particleToRemove) {
+                         spiritualAuraGroup.remove(particleToRemove);
+                         particleToRemove.geometry.dispose();
+                         if (particleToRemove.material.map) particleToRemove.material.map.dispose();
+                         particleToRemove.material.dispose();
+                     }
+                }
+            }
+            recalculateAndDisplaySpiritualLevel();
+            updateCharacterLevelAndRank();
+        }
+
+        function recalculateAndDisplaySpiritualLevel() {
+            let totalSpiritualPoints = 0;
+            appData.spiritual.tasks.forEach(task => {
+                totalSpiritualPoints += parseInt(task.count, 10) || 0;
+            });
+            currentSpiritualLevel = totalSpiritualPoints;
+            showUserMessage(`Аура Духовности: ${currentSpiritualLevel.toFixed(0)}`, "success", 1000);
+        }
+
+        createSpiritParticle = function() {
+            if (!loadedModel || !spiritualAuraGroup) return;
+
+            const modelBox = new THREE.Box3().setFromObject(loadedModel);
+            const modelCenter = modelBox.getCenter(new THREE.Vector3());
+            const modelSize = modelBox.getSize(new THREE.Vector3());
+            const modelBaseY = modelCenter.y - modelSize.y * 0.5;
+            const modelHeadY = modelCenter.y + modelSize.y * 0.4;
+
+            const particleGeometry = new THREE.BufferGeometry();
+            const particleMaterial = new THREE.PointsMaterial({
+                size: 0.07 + Math.random() * 0.03,
+                map: createFlameTexture(true),
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                transparent: true,
+                opacity: 0.85, // Initial opacity
+                color: SPIRIT_COLOR,
+                vertexColors: false
+            });
+
+            const startY = modelBaseY + Math.random() * 0.2;
+            const startRadius = modelSize.x * 0.2 + Math.random() * modelSize.x * 0.1;
+            const startAngle = Math.random() * Math.PI * 2;
+
+            const position = new Float32Array([
+                modelCenter.x + Math.cos(startAngle) * startRadius,
+                startY,
+                modelCenter.z + Math.sin(startAngle) * startRadius
+            ]);
+            particleGeometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
+
+            const particle = new THREE.Points(particleGeometry, particleMaterial);
+
+            particle.userData = {
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.0025,
+                    0.018 + Math.random() * 0.01,
+                    (Math.random() - 0.5) * 0.0025
+                ),
+                initialY: startY,
+                initialOpacity: particleMaterial.opacity, // Store initial opacity
+                initialSize: particleMaterial.size,
+                maxHeight: modelHeadY + modelSize.y * 0.6,
+                modelCenter: modelCenter.clone(),
+                baseRadius: startRadius,
+                modelSizeY: modelSize.y // Store modelSize.y for fade calculation
+            };
+
+            if(spiritualAuraGroup) spiritualAuraGroup.add(particle);
+        };
+
+        animateSpiritualAura = function() {
+            if (!spiritualAuraGroup || !loadedModel) return;
+
+            for (let i = spiritualAuraGroup.children.length - 1; i >= 0; i--) {
+                const particle = spiritualAuraGroup.children[i];
+                const userData = particle.userData;
+                const fadeDistance = userData.modelSizeY * 0.25; // Start fading over last 25% of modelSizeY before maxHeight
+
+                particle.position.add(userData.velocity);
+
+                if (particle.position.y > userData.maxHeight) { // Particle is well past its max height, reset it
+                    particle.position.y = userData.initialY;
+                    const resetAngle = Math.random() * Math.PI * 2;
+                    const resetRadius = userData.baseRadius * (0.8 + Math.random() * 0.4);
+                    particle.position.x = userData.modelCenter.x + Math.cos(resetAngle) * resetRadius;
+                    particle.position.z = userData.modelCenter.z + Math.sin(resetAngle) * resetRadius;
+
+                    particle.material.opacity = userData.initialOpacity;
+                    particle.material.size = userData.initialSize;
+                    userData.velocity.y = 0.018 + Math.random() * 0.01;
+
+                } else if (particle.position.y > userData.maxHeight - fadeDistance) { // Particle is in the fade zone
+                    const progressInFadeZone = (particle.position.y - (userData.maxHeight - fadeDistance)) / fadeDistance;
+                    particle.material.opacity = userData.initialOpacity * (1 - Math.min(1, Math.max(0, progressInFadeZone)));
+                } else { // Particle is below fade zone, normal opacity
+                    particle.material.opacity = userData.initialOpacity;
+                }
+            }
+        };
+
+        function updateCharacterLevelAndRank() {
+            let totalPointsForLevelCalc = 0;
+
+            appData.spiritual.tasks.forEach(task => totalPointsForLevelCalc += task.count);
+            appData.combat.tasks.forEach(task => totalPointsForLevelCalc += task.count);
+            appData.intellect.memory.toLearn.forEach(task => totalPointsForLevelCalc += task.count);
+            appData.intellect.memory.learned.forEach(task => totalPointsForLevelCalc += 1);
+            appData.intellect.analysis.tasks.forEach(task => totalPointsForLevelCalc += task.count);
+            appData.intellect.tafakkur.tasks.forEach(task => totalPointsForLevelCalc += task.count);
+
+            const newLevel = Math.floor(totalPointsForLevelCalc / POINTS_PER_LEVEL);
+
+            if (newLevel > characterLevel) {
+                showLevelUpAnimation();
+            }
+            characterLevel = newLevel;
+
+            let newRank = "E";
+            if (characterLevel >= rankThresholds.S) newRank = "S";
+            else if (characterLevel >= rankThresholds.A) newRank = "A";
+            else if (characterLevel >= rankThresholds.B) newRank = "B";
+            else if (characterLevel >= rankThresholds.C) newRank = "C";
+            else if (characterLevel >= rankThresholds.D) newRank = "D";
+            currentRank = newRank;
+
+            if (levelRankDisplay) {
+                levelRankDisplay.innerHTML = `Уровень: ${characterLevel} (<span class="rank-${currentRank}">Ранг: ${currentRank}</span>)`;
+            }
+        }
+
+        function showLevelUpAnimation() {
+            if (levelUpTextElement) {
+                levelUpTextElement.classList.add('show');
+                setTimeout(() => {
+                    levelUpTextElement.classList.remove('show');
+                }, 2000);
+            }
+            if (loadedModel && loadedModel.isGroup) {
+                const originalEmissiveIntensity = {};
+                loadedModel.traverse(child => {
+                    if (child.isMesh && child.material && child.material.emissive) {
+                        originalEmissiveIntensity[child.uuid] = child.material.emissiveIntensity;
+                        child.material.emissiveIntensity = 2.5;
+                    }
+                });
+                setTimeout(() => {
+                    loadedModel.traverse(child => {
+                        if (child.isMesh && child.material && child.material.emissive) {
+                            child.material.emissiveIntensity = originalEmissiveIntensity[child.uuid] !== undefined ? originalEmissiveIntensity[child.uuid] : 0.4;
+                        }
+                    });
+                }, 300);
+            }
+        }
+
+        function createWatchingEye() {
+            if (!starryCanvas || !starryCtx) return;
+
+            const eye = {
+                x: Math.random() * starryCanvas.width,
+                y: Math.random() * (starryCanvas.height * 0.6),
+                radius: 10 + Math.random() * 10,
+                pupilRadius: 3 + Math.random() * 3,
+                color: `rgba(200, 0, 0, 0)`,
+                targetAlpha: 0.5 + Math.random() * 0.3,
+                currentAlpha: 0,
+                life: EYE_LIFETIME_MIN + Math.random() * (EYE_LIFETIME_MAX - EYE_LIFETIME_MIN),
+                startTime: clock.getElapsedTime(),
+                state: 'appearing'
+            };
+            watchingEyes.push(eye);
+        }
+
+        function drawWatchingEyes() {
+            if (!starryCtx) return;
+            watchingEyes.forEach(eye => {
+                starryCtx.beginPath();
+                starryCtx.arc(eye.x, eye.y, eye.radius, 0, Math.PI * 2);
+                starryCtx.fillStyle = `rgba(150, 0, 0, ${eye.currentAlpha * 0.7})`;
+                starryCtx.fill();
+                starryCtx.beginPath();
+                starryCtx.arc(eye.x, eye.y, eye.pupilRadius, 0, Math.PI * 2);
+                starryCtx.fillStyle = `rgba(255, 20, 20, ${eye.currentAlpha})`;
+                starryCtx.fill();
+            });
+        }
+
+        function animateWatchingEyes(deltaTime) {
+            if (!starryCtx) return;
+
+            const currentTime = clock.getElapsedTime();
+
+            if (currentTime - lastEyeCreationTime > nextEyeCreationDelay / 1000) {
+                createWatchingEye();
+                lastEyeCreationTime = currentTime;
+                nextEyeCreationDelay = Math.random() * (EYE_CREATION_INTERVAL_MAX - EYE_CREATION_INTERVAL_MIN) + EYE_CREATION_INTERVAL_MIN;
+            }
+
+            for (let i = watchingEyes.length - 1; i >= 0; i--) {
+                const eye = watchingEyes[i];
+                const timeAlive = (currentTime - eye.startTime) * 1000;
+
+                if (timeAlive > eye.life) {
+                    watchingEyes.splice(i, 1);
+                    continue;
+                }
+
+                if (eye.state === 'appearing') {
+                    eye.currentAlpha += deltaTime * 2;
+                    if (eye.currentAlpha >= eye.targetAlpha) {
+                        eye.currentAlpha = eye.targetAlpha;
+                        eye.state = 'visible';
+                    }
+                } else if (eye.state === 'visible') {
+                    if (timeAlive > eye.life * 0.7) {
+                        eye.state = 'fading';
+                    }
+                } else if (eye.state === 'fading') {
+                    eye.currentAlpha -= deltaTime * 1.5;
+                    if (eye.currentAlpha <= 0) {
+                        eye.currentAlpha = 0;
+                    }
+                }
+                eye.currentAlpha = Math.max(0, Math.min(eye.targetAlpha, eye.currentAlpha));
+            }
+        }
+
+        renderTasks = function(taskListId, tasks, attributeType, subCategory = null) {
+            const taskListDiv = document.getElementById(taskListId);
+            if (!taskListDiv) {
+                console.warn(`renderTasks: Элемент списка ${taskListId} не найден.`);
+                return;
+            }
+            taskListDiv.innerHTML = '';
+            tasks.forEach(task => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = `task-item`;
+
+                let counterElement;
+                if (attributeType === 'spiritual' || attributeType === 'combat' || (attributeType === 'intellect' && subCategory !== 'memoryLearned')) {
+                    counterElement = `
+                        <input type="number" class="task-counter-input"
+                               value="${task.count}"
+                               min="0"
+                               data-task-id="${task.id}"
+                               data-attribute="${attributeType}"
+                               ${subCategory ? `data-subcategory="${subCategory}"` : ''}>
+                    `;
+                } else {
+                    counterElement = `<span class="task-counter">${task.count}</span>`;
+                }
+
+                itemDiv.innerHTML = `
+                    <span class="flex-grow mr-2">${task.text}</span>
+                    <div class="task-controls">
+                        <div class="task-counter-group">
+                            ${counterElement}
+                            <button class="plus-btn" data-task-id="${task.id}" data-attribute="${attributeType}" ${subCategory ? `data-subcategory="${subCategory}"` : ''}>+</button>
+                        </div>
+                        <button class="delete-task-btn" data-task-id="${task.id}" data-attribute="${attributeType}" ${subCategory ? `data-subcategory="${subCategory}"` : ''} title="Удалить задачу">&times;</button>
+                    </div>
+                `;
+                taskListDiv.appendChild(itemDiv);
+            });
+        };
+
+        renderMemoryLearned = function(listId, items) {
+             const listDiv = document.getElementById(listId);
+               if (!listDiv) {
+                console.warn(`renderMemoryLearned: Элемент списка ${listId} не найден.`);
+                return;
+            }
+            listDiv.innerHTML = '';
+            items.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'memory-item';
+                itemDiv.innerHTML = `
+                    <span class="flex-grow">${item.text}</span>
+                    <button class="delete-item-btn" data-item-id="${item.id}" title="Удалить">&times;</button>
+                `;
+                listDiv.appendChild(itemDiv);
+            });
+        };
+
+        switchAttributeContent = function(attributeKey) {
+            const attributeButtons = {
+                spiritual: spiritualBtn,
+                intellect: intellectBtn,
+                combat: combatBtn
+            };
+            for (const key in attributeContentAreas) {
+                if (attributeContentAreas[key]) attributeContentAreas[key].classList.remove('active');
+            }
+            for (const key in attributeButtons) {
+                if (attributeButtons[key]) attributeButtons[key].classList.remove('active-attribute');
+            }
+
+            if (attributeContentAreas[attributeKey]) {
+                attributeContentAreas[attributeKey].classList.add('active');
+            }
+            if (attributeButtons[attributeKey]) {
+                 attributeButtons[attributeKey].classList.add('active-attribute');
+            }
+
+            if (attributeKey === 'spiritual') {
+                renderTasks('spiritualTaskList', appData.spiritual.tasks, 'spiritual');
+            }
+            else if (attributeKey === 'combat') {
+                 renderTasks('combatTaskList', appData.combat.tasks, 'combat');
+            }
+            else if (attributeKey === 'intellect') switchIntellectTab('memory');
+            updateCharacterLevelAndRank();
+        };
+
+        setupEventListeners = function() {
+            if(spiritualBtn) spiritualBtn.onclick = () => switchAttributeContent('spiritual');
+            if(intellectBtn) intellectBtn.onclick = () => switchAttributeContent('intellect');
+            if(combatBtn) combatBtn.onclick = () => switchAttributeContent('combat');
+
+            if (toggleAttributesPanelBtn) {
+                toggleAttributesPanelBtn.onclick = () => {
+                    const isOpen = attributesPanel.classList.toggle('open');
+                    const panelWidth = attributesPanel.offsetWidth;
+                    const originalButtonRightOffset = 20; // As per CSS
+
+                    if (isOpen) {
+                        openPanelIcon.style.display = 'none';
+                        closePanelIcon.style.display = 'block';
+                        toggleAttributesPanelBtn.style.right = `${panelWidth + originalButtonRightOffset}px`;
+                    } else {
+                        openPanelIcon.style.display = 'block';
+                        closePanelIcon.style.display = 'none';
+                        toggleAttributesPanelBtn.style.right = `${originalButtonRightOffset}px`;
+                    }
+                    setTimeout(onWindowResize, 360);
+                };
+            }
+
+            document.querySelectorAll('.intellect-tabs button').forEach(tabBtn => {
+                tabBtn.onclick = () => switchIntellectTab(tabBtn.dataset.tab);
+            });
+
+            setupTaskAddition('addSpiritualTaskBtn', 'newSpiritualTaskInput', appData.spiritual.tasks, 'spiritualTaskList', 'spiritual');
+            setupTaskAddition('addCombatTaskBtn', 'newCombatTaskInput', appData.combat.tasks, 'combatTaskList', 'combat');
+            setupTaskAddition('addMemoryToLearnBtn', 'newMemoryToLearnInput', appData.intellect.memory.toLearn, 'memoryToLearnList', 'intellect', 'memory');
+
+            const addMemoryLearnedBtn = document.getElementById('addMemoryLearnedBtn');
+            if(addMemoryLearnedBtn) addMemoryLearnedBtn.onclick = () => {
+                const input = document.getElementById('newMemoryLearnedInput');
+                if(!input) return;
+                const text = input.value.trim();
+                if (text) {
+                    appData.intellect.memory.learned.push({ id: `learned-${nextTaskId++}`, text: text, count: 1 });
+                    renderMemoryLearned('memoryLearnedList', appData.intellect.memory.learned);
+                    input.value = '';
+                    updateIntellectAura(1);
+                    updateCharacterLevelAndRank();
+                }
+            };
+            const memoryLearnedListEl = document.getElementById('memoryLearnedList');
+            if(memoryLearnedListEl) memoryLearnedListEl.addEventListener('click', (event) => {
+                if (event.target.classList.contains('delete-item-btn')) {
+                    const itemId = event.target.dataset.itemId;
+                    const itemIndex = appData.intellect.memory.learned.findIndex(item => item.id === itemId);
+                    if (itemIndex > -1) {
+                        appData.intellect.memory.learned.splice(itemIndex, 1);
+                        renderMemoryLearned('memoryLearnedList', appData.intellect.memory.learned);
+                        updateIntellectAura(-1);
+                        updateCharacterLevelAndRank();
+                    }
+                }
+            });
+
+            setupTaskAddition('addAnalysisTaskBtn', 'newAnalysisTaskInput', appData.intellect.analysis.tasks, 'analysisTaskList', 'intellect', 'analysis');
+            setupTaskAddition('addTafakkurTaskBtn', 'newTafakkurTaskInput', appData.intellect.tafakkur.tasks, 'tafakkurTaskList', 'intellect', 'tafakkur');
+
+            document.body.addEventListener('click', function(event) {
+                const target = event.target;
+                if (target.classList.contains('plus-btn')) {
+                    const taskId = target.dataset.taskId;
+                    const attribute = target.dataset.attribute;
+                    const subCategory = target.dataset.subcategory;
+
+                    let taskArray;
+                    if (attribute === 'spiritual') taskArray = appData.spiritual.tasks;
+                    else if (attribute === 'combat') taskArray = appData.combat.tasks;
+                    else if (attribute === 'intellect') {
+                        if (subCategory === 'memory') taskArray = appData.intellect.memory.toLearn;
+                        else if (subCategory === 'analysis') taskArray = appData.intellect.analysis.tasks;
+                        else if (subCategory === 'tafakkur') taskArray = appData.intellect.tafakkur.tasks;
+                    }
+
+                    const task = taskArray ? taskArray.find(t => t.id == taskId) : null;
+                    if (task) {
+                        const newCount = task.count + 1;
+                        if (attribute === 'spiritual') handleSpiritualTaskCountChange(taskId, newCount.toString());
+                        else if (attribute === 'combat') handleCombatTaskCountChange(taskId, newCount.toString());
+                        else if (attribute === 'intellect') {
+                            task.count = newCount;
+                            updateIntellectAura(1);
+                            updateCharacterLevelAndRank();
+                            const inputElement = document.querySelector(`.task-counter-input[data-task-id="${taskId}"][data-attribute="intellect"][data-subcategory="${subCategory}"]`);
+                            if (inputElement) inputElement.value = newCount;
+                        }
+                        const inputElement = document.querySelector(`.task-counter-input[data-task-id="${taskId}"][data-attribute="${attribute}"]` + (subCategory ? `[data-subcategory="${subCategory}"]` : ''));
+                        if (inputElement) inputElement.value = newCount;
+                    }
+                } else if (target.classList.contains('delete-task-btn')) {
+                    const taskId = target.dataset.taskId;
+                    const attribute = target.dataset.attribute;
+                    const subCategory = target.dataset.subcategory;
+
+                    let taskArray;
+                    let particleGroup;
+                    let listId;
+                    let pointsToSubtractFromIntellect = 0;
+
+
+                    if (attribute === 'spiritual') {
+                        taskArray = appData.spiritual.tasks;
+                        particleGroup = spiritualAuraGroup;
+                        listId = 'spiritualTaskList';
+                    } else if (attribute === 'combat') {
+                        taskArray = appData.combat.tasks;
+                        particleGroup = combatAuraGroup;
+                        listId = 'combatTaskList';
+                    } else if (attribute === 'intellect' && subCategory) {
+                        if (subCategory === 'memory') taskArray = appData.intellect.memory.toLearn;
+                        else if (subCategory === 'analysis') taskArray = appData.intellect.analysis.tasks;
+                        else if (subCategory === 'tafakkur') taskArray = appData.intellect.tafakkur.tasks;
+                        listId = subCategory === 'memory' ? 'memoryToLearnList' : (subCategory === 'analysis' ? 'analysisTaskList' : 'tafakkurTaskList');
+                    } else { return; }
+
+                    const taskIndex = taskArray.findIndex(t => t.id == taskId);
+                    if (taskIndex > -1) {
+                        const removedTask = taskArray[taskIndex];
+                        const particlesToRemoveCount = removedTask.count;
+                        if (attribute === 'intellect') {
+                            pointsToSubtractFromIntellect = removedTask.count;
+                        }
+                        taskArray.splice(taskIndex, 1);
+
+                        if (particleGroup && (attribute === 'spiritual' || attribute === 'combat')) {
+                            for (let i = 0; i < particlesToRemoveCount && particleGroup.children.length > 0; i++) {
+                                const particleToRemove = particleGroup.children[particleGroup.children.length - 1];
+                                if (particleToRemove) {
+                                    particleGroup.remove(particleToRemove);
+                                    particleToRemove.geometry.dispose();
+                                    if (particleToRemove.material.map) particleToRemove.material.map.dispose();
+                                    particleToRemove.material.dispose();
+                                }
+                            }
+                        }
+                        if (attribute === 'intellect') {
+                            updateIntellectAura(-pointsToSubtractFromIntellect);
+                        }
+                        renderTasks(listId, taskArray, attribute, subCategory);
+                        updateCharacterLevelAndRank();
+                    }
+                }
+            });
+            document.body.addEventListener('change', function(event) {
+                const target = event.target;
+                if (target.classList.contains('task-counter-input')) {
+                    const taskId = target.dataset.taskId;
+                    const attribute = target.dataset.attribute;
+                    const subCategory = target.dataset.subcategory;
+
+                    if (attribute === 'spiritual') {
+                        handleSpiritualTaskCountChange(taskId, target.value);
+                    } else if (attribute === 'combat') {
+                        handleCombatTaskCountChange(taskId, target.value);
+                    } else if (attribute === 'intellect' && subCategory && subCategory !== 'memoryLearned') {
+                        const taskArray = subCategory === 'memory' ? appData.intellect.memory.toLearn :
+                                          subCategory === 'analysis' ? appData.intellect.analysis.tasks :
+                                          appData.intellect.tafakkur.tasks;
+                        const task = taskArray.find(t => t.id == taskId);
+                        if (task) {
+                            const newCount = parseInt(target.value, 10);
+                             if (!isNaN(newCount) && newCount >= 0) {
+                                const diff = newCount - task.count;
+                                task.count = newCount;
+                                updateIntellectAura(diff);
+                                updateCharacterLevelAndRank();
+                             } else {
+                                target.value = task.count;
+                             }
+                        }
+                    }
+                }
+            });
+        };
+
+        setupTaskAddition = function(addBtnId, inputId, taskArray, listId, attributeType, subCategory = null) {
+            const addBtn = document.getElementById(addBtnId);
+            const inputEl = document.getElementById(inputId);
+            if (!addBtn || !inputEl) {
+                console.warn(`setupTaskAddition: Отсутствуют элементы для добавления задачи: ${addBtnId}, ${inputId}`);
+                return;
+            }
+
+            addBtn.onclick = () => {
+                const text = inputEl.value.trim();
+                if (text) {
+                    taskArray.push({ id: nextTaskId++, text: text, count: 0 });
+                    renderTasks(listId, taskArray, attributeType, subCategory);
+                    updateCharacterLevelAndRank();
+                    inputEl.value = '';
+                }
+            };
+        };
+
+        switchIntellectTab = function(tabName) {
+            document.querySelectorAll('.intellect-tabs button').forEach(btn => btn.classList.remove('active-tab'));
+            document.querySelectorAll('.intellect-tab-content').forEach(content => content.classList.remove('active'));
+
+            const activeTabButton = document.querySelector(`.intellect-tabs button[data-tab="${tabName}"]`);
+            const activeTabContent = document.getElementById(`${tabName}TabContent`);
+
+            if (activeTabButton) activeTabButton.classList.add('active-tab');
+            if (activeTabContent) activeTabContent.classList.add('active');
+
+            if (tabName === 'memory') {
+                renderTasks('memoryToLearnList', appData.intellect.memory.toLearn, 'intellect', 'memory');
+                renderMemoryLearned('memoryLearnedList', appData.intellect.memory.learned);
+            } else if (tabName === 'analysis') {
+                renderTasks('analysisTaskList', appData.intellect.analysis.tasks, 'intellect', 'analysis');
+            } else if (tabName === 'tafakkur') {
+                renderTasks('tafakkurTaskList', appData.intellect.tafakkur.tasks, 'intellect', 'tafakkur');
+            }
+            updateCharacterLevelAndRank();
+        };
+
+        showUserMessage = function(message, type = 'info', duration = 3000) {
+            if (messageArea) {
+                messageArea.textContent = message;
+                messageArea.className = 'mt-auto border-t border-slate-300 flex-shrink-0 text-center font-semibold';
+                messageArea.classList.add('p-2', 'h-10', 'md:p-3', 'md:h-12');
+
+                switch (type) {
+                    case 'success': messageArea.classList.add('text-green-500'); break;
+                    case 'error': messageArea.classList.add('text-red-500'); break;
+                    case 'warning': messageArea.classList.add('text-yellow-500'); break;
+                    default: messageArea.classList.add('text-sky-500'); break;
+                }
+            } else {
+                console.log(`Сообщение (${type}): ${message}`);
+            }
+        };
+
+        window.onload = function() {
+            console.log("Событие window.onload. v9.65 (Плавное Исчезновение Аур)");
+            try {
+                init();
+            } catch (e) {
+                console.error("КРИТИЧЕСКАЯ ОШИБКА ПРИ ЗАГРУЗКЕ:", e);
+                const ld = document.getElementById('loadingIndicator');
+                if (ld) {
+                    ld.innerHTML = 'КРИТИЧЕСКАЯ ОШИБКА!<br>См. консоль (F12).';
+                    ld.style.color = 'red';
+                    ld.style.display = 'block';
+                }
+            }
+        };
+        console.log("Выполнение скрипта завершено. v9.65 (Плавное Исчезновение Аур)");
+    </script>
+</body>
+</html>
