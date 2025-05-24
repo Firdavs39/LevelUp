@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Интерфейс Прокачки Атрибутов</title>
+    <title>Интерфейс Прокачки Атрибутов с Firebase</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -11,6 +11,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&display=swap" rel="stylesheet">
+
+    <script defer src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
     <style>
         html, body {
             height: 100%;
@@ -35,6 +40,33 @@
             background-color: rgba(0,0,0,0.7); padding: 15px 25px; border-radius: 12px;
         }
 
+        #topUsernameDisplay {
+            position: fixed;
+            top: 15px; 
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1005; 
+            font-size: 2rem; 
+            color: #E0E7FF; 
+            text-align: center;
+            display: none; 
+            font-family: 'Roboto Condensed', sans-serif; 
+            font-weight: 700;
+            text-shadow: 
+                0 0 5px rgba(0, 168, 255, 0.7),  
+                0 0 10px rgba(0, 168, 255, 0.5),
+                1px 1px 2px rgba(0, 0, 0, 0.7); 
+            pointer-events: none; 
+            letter-spacing: 0.05em;
+        }
+        @media (min-width: 768px) {
+            #topUsernameDisplay {
+                font-size: 2.5rem; 
+                top: 20px;
+            }
+        }
+
+
         .control-button-group {
             position: fixed;
             top: 20px;
@@ -42,7 +74,7 @@
             display: flex;
             flex-direction: row;
             gap: 12px;
-            z-index: 1003; /* Above modals when closed, modals will have higher z-index when open */
+            z-index: 1003;
         }
 
         .control-button {
@@ -62,21 +94,25 @@
         .control-button:hover {
             background-color: #4B5563;
         }
+        .control-button:disabled {
+            background-color: #4B5563;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
         .control-button svg {
-            width: 24px; /* Standardized icon size */
+            width: 24px;
             height: 24px;
         }
 
-        /* Modal Base Styles (for all modals: attributes and timer) */
         .modal-backdrop {
             position: fixed;
             inset: 0;
-            background-color: rgba(10, 20, 40, 0.6);
-            backdrop-filter: blur(5px);
-            display: none; /* Hidden by default */
+            background-color: rgba(10, 20, 40, 0.3); 
+            /* backdrop-filter: blur(5px); */ 
+            display: none; 
             align-items: center;
             justify-content: center;
-            z-index: 2000; /* High z-index */
+            z-index: 2000;
             opacity: 0;
             transition: opacity 0.3s ease-in-out;
         }
@@ -85,32 +121,32 @@
             opacity: 1;
         }
         .modal-content-box {
-            background-color: #E2E8F0; /* Neumorphic light background */
-            color: #1E293B; /* Dark text for contrast */
+            background-color: #E2E8F0;
+            color: #1E293B;
             padding: 25px 30px;
             border-radius: 16px;
-            box-shadow: 8px 8px 16px #c1c9d2, -8px -8px 16px #ffffff; /* Neumorphic outer shadow */
+            box-shadow: 8px 8px 16px #c1c9d2, -8px -8px 16px #ffffff;
             width: 90vw;
-            max-width: 420px; /* Slightly wider for attribute content */
+            max-width: 420px;
             text-align: center;
             display: flex;
             flex-direction: column;
-            max-height: 85vh; /* Ensure modal fits on screen */
+            max-height: 85vh;
         }
         .modal-header {
-            font-size: 1.5rem; /* Larger header */
+            font-size: 1.5rem;
             font-weight: 700;
-            color: #334155; /* Darker slate for header */
+            color: #334155;
             margin-bottom: 20px;
             padding-bottom: 10px;
             border-bottom: 1px solid #CBD5E1;
         }
-        .modal-body-scrollable { /* This will contain the lists and inputs */
+        .modal-body-scrollable {
             overflow-y: auto;
-            flex-grow: 1; /* Allows this area to expand and fill available space */
-            min-height: 0; /* Crucial for flexbox children to scroll correctly */
-            padding-right: 5px; /* Space for scrollbar */
-            margin-right: -5px; /* Counteract padding for full width */
+            flex-grow: 1;
+            min-height: 0;
+            padding-right: 5px;
+            margin-right: -5px;
             scrollbar-width: thin;
             scrollbar-color: #9ca3af #E2E8F0;
         }
@@ -123,7 +159,7 @@
             padding-top: 15px;
             border-top: 1px solid #CBD5E1;
         }
-        .modal-close-btn { /* Common style for close buttons in modals */
+        .modal-close-btn {
             padding: 10px 20px;
             border-radius: 10px;
             font-weight: 600;
@@ -143,10 +179,6 @@
         .modal-close-btn:active {
             box-shadow: inset 3px 3px 6px #c1c9d2, inset -3px -3px 6px #ffffff;
         }
-
-
-        /* Attribute specific modal content inherits general modal styles */
-        /* Styles for .attribute-buttons-container, .attribute-button, etc. will apply within modals */
 
         .level-rank-display {
             text-align: center;
@@ -170,7 +202,7 @@
             }
         }
 
-        .attribute-buttons-container { /* This might be removed if attributes are directly in modals */
+        .attribute-buttons-container {
             flex-shrink: 0;
             margin-bottom: 10px;
             display: flex;
@@ -183,7 +215,7 @@
             }
         }
 
-        .attribute-button { /* These were for switching tabs, may not be needed if each attribute is a modal */
+        .attribute-button {
             background-color: #E2E8F0; color: #334155; border: 1px solid transparent;
             transition: all 0.2s ease-in-out; flex-shrink: 0; font-weight: 600;
             text-transform: none; letter-spacing: 0.02em;
@@ -219,12 +251,11 @@
         }
         canvas { display: block; width: 100%; height: 100%;}
 
-        .attribute-content-area { /* Used inside modals now */
-            padding-top: 10px; /* Add some padding at the top of the scrollable area */
+        .attribute-content-area {
+            padding-top: 10px;
         }
-        /* .attribute-content-area.active { display: block; } No longer needed as modals control visibility */
 
-        .content-header { /* Headers for task sections within modals */
+        .content-header {
             font-size: 1.1rem;
             font-weight: 600; color: #475569;
             margin-bottom: 10px;
@@ -357,7 +388,7 @@
         .delete-item-btn:hover, .delete-task-btn:hover { color: #B91C1C; box-shadow: inset 1px 1px 2px #c1c9d2, inset -1px -1px 2px #ffffff; }
 
 
-        input[type="text"].task-input {
+        input[type="text"].task-input, input[type="email"].task-input, input[type="password"].task-input { /* Added email/password */
             padding: 6px 8px;
             font-size: 0.9rem;
             border-radius: 6px; color: #1E293B;
@@ -365,14 +396,14 @@
             border: none; box-shadow: inset 2px 2px 5px #c1c9d2, inset -2px -2px 5px #ffffff;
         }
         @media (min-width: 768px) {
-            input[type="text"].task-input {
+            input[type="text"].task-input, input[type="email"].task-input, input[type="password"].task-input {
                 padding: 10px 12px;
                 font-size: 1rem;
                 border-radius: 8px;
                 margin-right: 8px;
             }
         }
-         input[type="text"].task-input:focus {
+         input[type="text"].task-input:focus, input[type="email"].task-input:focus, input[type="password"].task-input:focus {
             outline: none;
             box-shadow: inset 3px 3px 7px #c1c9d2, inset -3px -3px 7px #ffffff, 0 0 0 2px #93C5FD;
         }
@@ -423,20 +454,20 @@
             overflow: hidden;
         }
 
-        #messageArea { /* Updated for global positioning */
+        #messageArea {
             position: fixed;
             bottom: 0;
             left: 0;
             width: 100%;
-            background-color: rgba(17, 24, 39, 0.8); /* Darker, semi-transparent */
+            background-color: rgba(17, 24, 39, 0.8);
             backdrop-filter: blur(3px);
-            color: #9ca3af; /* Lighter text for dark bg */
+            color: #9ca3af;
             padding: 8px 15px;
             text-align: center;
             font-size: 0.875rem;
-            z-index: 1001; /* Below modals but above canvas */
+            z-index: 1001;
             transition: opacity 0.3s ease, transform 0.3s ease;
-            opacity: 0; /* Hidden by default, shown by JS */
+            opacity: 0;
             transform: translateY(100%);
         }
         #messageArea.show {
@@ -479,8 +510,7 @@
             }
         }
 
-        /* Global Timer Modal Styles */
-        #globalTimerModal .timer-modal-content { /* Re-using .modal-content-box */
+        #globalTimerModal .timer-modal-content {
             background-color: #E2E8F0;
             color: #1E293B;
             padding: 25px 30px;
@@ -569,12 +599,33 @@
         .timer-modal-buttons button.start-timer-btn.running {
             color: #D97706;
         }
+        /* Styles for Auth Modal */
+        #authModal .task-input { /* Re-use task-input for consistency */
+            margin-bottom: 0.75rem; /* 12px */
+            margin-right: 0; /* Remove right margin if full width */
+            width: 100%;
+        }
+        #authModal button {
+            padding: 0.75rem 1rem; /* 12px 16px */
+            font-weight: 600;
+            border-radius: 0.5rem; /* 8px */
+            transition: background-color 0.2s ease-in-out;
+        }
+        #authModal #loginBtn { background-color: #0EA5E9; color: white; }
+        #authModal #loginBtn:hover { background-color: #0284C7; }
+        #authModal #registerBtn { background-color: #10B981; color: white; }
+        #authModal #registerBtn:hover { background-color: #059669; }
+        #authModal #logoutBtn { background-color: #EF4444; color: white; }
+        #authModal #logoutBtn:hover { background-color: #DC2626; }
+        #authModal a { color: #0EA5E9; }
+        #authModal a:hover { text-decoration: underline; }
 
     </style>
 </head>
 <body class="app-wrapper">
 
     <canvas id="starryBackground"></canvas>
+    <div id="topUsernameDisplay"></div>
 
     <div id="canvasContainer" class="flex-grow relative">
         <div id="loadingIndicator">Загрузка 3D модели...</div>
@@ -600,6 +651,11 @@
         <button id="toggleGlobalTimerBtn" class="control-button" title="Открыть глобальный таймер">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        </button>
+        <button id="toggleAuthModalBtn" class="control-button" title="Аккаунт">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
             </svg>
         </button>
     </div>
@@ -689,12 +745,51 @@
         </div>
     </div>
 
+    <div id="authModal" class="modal-backdrop">
+        <div class="modal-content-box" style="max-width: 400px;">
+            <h3 class="modal-header" id="authModalTitle">Вход / Регистрация</h3>
+            <div class="modal-body-scrollable py-4">
+                <div id="loginForm">
+                    <input type="email" id="loginEmail" placeholder="Email" class="task-input w-full mb-3">
+                    <input type="password" id="loginPassword" placeholder="Пароль" class="task-input w-full mb-3">
+                    <button id="loginBtn" class="w-full py-2 mb-3">Войти</button>
+                    <p class="text-sm text-center">Нет аккаунта? <a href="#" id="showRegisterLink">Зарегистрироваться</a></p>
+                </div>
+
+                <div id="registerForm" style="display: none;">
+                    <input type="text" id="registerUsername" placeholder="Имя пользователя" class="task-input w-full mb-3">
+                    <input type="email" id="registerEmail" placeholder="Email" class="task-input w-full mb-3">
+                    <input type="password" id="registerPassword" placeholder="Пароль (мин. 6 симв.)" class="task-input w-full mb-3">
+                    <button id="registerBtn" class="w-full py-2 mb-3">Зарегистрироваться</button>
+                    <p class="text-sm text-center">Уже есть аккаунт? <a href="#" id="showLoginLink">Войти</a></p>
+                </div>
+
+                <div id="userInfo" style="display: none;">
+                    <p class="mb-3 text-center">Вы вошли как: <strong id="userEmailDisplay" class="block truncate"></strong></p>
+                    <p class="mb-3 text-center">Имя: <strong id="userDisplayName" class="block truncate"></strong></p> <p class="mb-3 text-center text-xs text-slate-500">User ID: <strong id="userIdDisplay" class="block truncate" style="word-break: break-all;"></strong></p>
+                    <button id="logoutBtn" class="w-full py-2">Выйти</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-close-btn" data-modal-id="authModal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
     <div id="messageArea"></div>
 
 
     <script>
-        // JavaScript code for Attribute Leveling Interface v9.70 (Attribute Modals UI Update)
-        console.log("Запуск скрипта. v9.70 (Модальные окна атрибутов, UI Таймера)");
+        // JavaScript code for Attribute Leveling Interface v9.70+Firebase
+        console.log("Запуск скрипта. v9.70+Firebase (Модальные окна атрибутов, UI Таймера, Firebase Auth & Firestore)");
+
+        // --- Firebase Variables ---
+        let firebaseApp;
+        let firebaseAuth;
+        let firestoreDB;
+        let currentUser = null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'; // For Firestore path
+
         // --- Global Variables ---
         let scene, camera, renderer, loadedModel, controls;
         let intellectAuraGroup, combatAuraGroup, spiritualAuraGroup, groundImpulseGroup;
@@ -726,15 +821,20 @@
         const IMPULSE_MAX_RADIUS = 2.5;
         const IMPULSE_RING_THICKNESS = 0.05;
 
-        const appData = {
-            spiritual: { tasks: []},
-            intellect: { memory: { toLearn: [], learned: [] }, analysis: { tasks: [] }, tafakkur: { tasks: [] }},
+        const defaultAppDataStructure = {
+            spiritual: { tasks: [] },
+            intellect: { memory: { toLearn: [], learned: [] }, analysis: { tasks: [] }, tafakkur: { tasks: [] } },
             combat: { tasks: [] }
         };
-        let nextTaskId = 0;
 
+        let appData = JSON.parse(JSON.stringify(defaultAppDataStructure)); // Initialize with a deep copy
+        let nextTaskId = 0;
         let characterLevel = 0;
         let currentRank = "E";
+        let currentCombatLevel = 0;
+        let currentSpiritualLevel = 0;
+
+
         const POINTS_PER_LEVEL = 10;
         const rankThresholds = { E: 0, D: 5, C: 10, B: 20, A: 30, S: 50 };
         const rankColors = { E: "#718096", D: "#48BB78", C: "#4299E1", B: "#9F7AEA", A: "#ED8936", S: "#E53E3E" };
@@ -742,41 +842,49 @@
         const canvasContainer = document.getElementById('canvasContainer');
         const loadingIndicator = document.getElementById('loadingIndicator');
         const messageArea = document.getElementById('messageArea');
-        // Removed old panel toggle button
         const controlButtonGroup = document.getElementById('controlButtonGroup');
         const levelUpTextElement = document.getElementById('levelUpText');
+        const topUsernameDisplayElement = document.getElementById('topUsernameDisplay'); 
 
         // Modal Toggle Buttons
         const toggleSpiritualModalBtn = document.getElementById('toggleSpiritualModalBtn');
         const toggleIntellectModalBtn = document.getElementById('toggleIntellectModalBtn');
         const toggleCombatModalBtn = document.getElementById('toggleCombatModalBtn');
         const toggleGlobalTimerBtn = document.getElementById('toggleGlobalTimerBtn');
+        const toggleAuthModalBtnEl = document.getElementById('toggleAuthModalBtn'); 
 
         // Modals
         const spiritualModal = document.getElementById('spiritualModal');
         const intellectModal = document.getElementById('intellectModal');
         const combatModal = document.getElementById('combatModal');
         const globalTimerModal = document.getElementById('globalTimerModal');
+        const authModalEl = document.getElementById('authModal'); 
 
         // Level/Rank displays within modals
         const levelRankDisplaySpiritual = document.getElementById('levelRankDisplaySpiritual');
         const levelRankDisplayIntellect = document.getElementById('levelRankDisplayIntellect');
         const levelRankDisplayCombat = document.getElementById('levelRankDisplayCombat');
 
-
         // Global Timer Modal Elements
         const globalTimerDisplayEl = document.getElementById('globalTimerDisplay');
         const globalTimerDurationInput = document.getElementById('globalTimerDurationInput');
         const globalTimerStartBtn = document.getElementById('globalTimerStartBtn');
         const globalTimerResetBtn = document.getElementById('globalTimerResetBtn');
-        // globalTimerCloseBtn is handled by generic modal close logic
 
-        // Attribute content areas (now inside modals, but IDs are the same for JS logic)
-        // const attributeContentAreas = { // This might not be needed if we directly target modal content
-        //     spiritual: document.getElementById('spiritualContent'), // This ID is now inside spiritualModal
-        //     intellect: document.getElementById('intellectContent'), // This ID is now inside intellectModal
-        //     combat: document.getElementById('combatContent')      // This ID is now inside combatModal
-        // };
+        // Auth Modal Elements
+        const loginFormEl = document.getElementById('loginForm');
+        const registerFormEl = document.getElementById('registerForm');
+        const userInfoDivEl = document.getElementById('userInfo');
+        const userEmailDisplayEl = document.getElementById('userEmailDisplay');
+        const userIdDisplayEl = document.getElementById('userIdDisplay');
+        const userDisplayNameEl = document.getElementById('userDisplayName'); 
+        const showRegisterLinkEl = document.getElementById('showRegisterLink');
+        const showLoginLinkEl = document.getElementById('showLoginLink');
+        const loginBtnEl = document.getElementById('loginBtn');
+        const registerBtnEl = document.getElementById('registerBtn');
+        const logoutBtnEl = document.getElementById('logoutBtn');
+        const authModalTitleEl = document.getElementById('authModalTitle');
+
 
         let starryCanvas, starryCtx;
         const stars = [];
@@ -793,6 +901,217 @@
         let lastImpulseCreationTime = 0;
         const IMPULSE_INTERVAL = 2.0;
 
+        // --- Firebase Functions ---
+        function initializeFirebase() {
+            const firebaseConfig = {
+              apiKey: "AIzaSyB_fhgCX_sUO3seUvk-lH3tedIb9jn_N18", 
+              authDomain: "levelup-7eb5a.firebaseapp.com",
+              projectId: "levelup-7eb5a",
+              storageBucket: "levelup-7eb5a.firebasestorage.app", 
+              messagingSenderId: "104551215195",
+              appId: "1:104551215195:web:2661d17b60436a97900f7e",
+              measurementId: "G-FTKGTDV6MT"
+            };
+            
+            if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+                firebaseApp = firebase.initializeApp(firebaseConfig); 
+                firebaseAuth = firebase.auth();
+                firestoreDB = firebase.firestore();
+                console.log("Firebase initialized with user's CORRECTED config.");
+
+                firebaseAuth.onAuthStateChanged(user => {
+                    if (user) {
+                        currentUser = user;
+                        console.log("User signed in:", user.uid, user.email, "DisplayName:", user.displayName);
+                        updateAuthUI(true);
+                        if (topUsernameDisplayElement && user.displayName) { 
+                            topUsernameDisplayElement.textContent = user.displayName;
+                            topUsernameDisplayElement.style.display = 'block';
+                        } else if (topUsernameDisplayElement) {
+                            topUsernameDisplayElement.style.display = 'none';
+                        }
+                        loadUserData(user.uid);
+                    } else {
+                        currentUser = null;
+                        console.log("User signed out or not authenticated.");
+                        updateAuthUI(false);
+                        if (topUsernameDisplayElement) { 
+                           topUsernameDisplayElement.style.display = 'none';
+                        }
+                        resetLocalDataToDefault();
+                        renderAllTasksAndLevels(); 
+                    }
+                });
+
+            } else if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+                 firebaseApp = firebase.app(); 
+                 firebaseAuth = firebase.auth();
+                 firestoreDB = firebase.firestore();
+                 console.log("Firebase already initialized.");
+            } else {
+                console.error("Firebase SDK not loaded. Cannot initialize Firebase.");
+                showUserMessage("Ошибка: Firebase SDK не загружен. Функции сохранения не будут работать.", "error", 0);
+            }
+        }
+
+        function updateAuthUI(isLoggedIn) {
+            const mainControlButtons = [
+                toggleSpiritualModalBtn, toggleIntellectModalBtn, toggleCombatModalBtn, toggleGlobalTimerBtn
+            ];
+
+            if (isLoggedIn && currentUser) {
+                if(loginFormEl) loginFormEl.style.display = 'none';
+                if(registerFormEl) registerFormEl.style.display = 'none';
+                if(userInfoDivEl) userInfoDivEl.style.display = 'block';
+                if(userEmailDisplayEl) userEmailDisplayEl.textContent = currentUser.email;
+                if(userIdDisplayEl) userIdDisplayEl.textContent = currentUser.uid;
+                if(userDisplayNameEl) userDisplayNameEl.textContent = currentUser.displayName || "Не указано"; 
+                if(authModalTitleEl) authModalTitleEl.textContent = "Ваш Аккаунт";
+                mainControlButtons.forEach(btn => btn && (btn.disabled = false));
+            } else {
+                if(loginFormEl) loginFormEl.style.display = 'block';
+                if(registerFormEl) registerFormEl.style.display = 'none';
+                if(userInfoDivEl) userInfoDivEl.style.display = 'none';
+                if(authModalTitleEl) authModalTitleEl.textContent = "Вход / Регистрация";
+                mainControlButtons.forEach(btn => btn && (btn.disabled = true));
+            }
+        }
+        
+        async function saveCurrentStateIfLoggedIn() {
+            if (currentUser && firestoreDB) {
+                await saveUserData(currentUser.uid);
+            }
+        }
+
+        async function saveUserData(userId) {
+            if (!firestoreDB || !userId) {
+                console.warn("Firestore DB or userId not available for saving.");
+                return;
+            }
+            const userDocRef = firestoreDB.collection('artifacts').doc(appId).collection('users').doc(userId).collection('userData').doc('progress');
+            
+            const dataToSave = {
+                appData: JSON.parse(JSON.stringify(appData)), 
+                characterLevel: characterLevel,
+                currentRank: currentRank,
+                nextTaskId: nextTaskId,
+                currentIntellectPoints: currentIntellectPoints,
+                currentCombatLevel: currentCombatLevel,
+                currentSpiritualLevel: currentSpiritualLevel,
+                username: currentUser ? currentUser.displayName : "", 
+                lastSaveTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            try {
+                await userDocRef.set(dataToSave);
+                console.log("User data saved to Firestore for user:", userId, "at path:", userDocRef.path);
+            } catch (error) {
+                console.error("Error saving user data:", error);
+                showUserMessage("Ошибка сохранения прогресса.", "error");
+            }
+        }
+
+        async function loadUserData(userId) {
+            if (!firestoreDB || !userId) {
+                 console.warn("loadUserData: Firestore DB or userId not available. Resetting local data."); 
+                 resetLocalDataToDefault(); 
+                 renderAllTasksAndLevels();
+                 return;
+            }
+            console.log(`loadUserData: Attempting to load data for userId: ${userId} from app: ${appId}`); 
+            const userDocRef = firestoreDB.collection('artifacts').doc(appId).collection('users').doc(userId).collection('userData').doc('progress');
+            
+            try {
+                const docSnap = await userDocRef.get();
+                // ИЗМЕНЕНИЕ: Используем docSnap.exists как свойство для compat SDK
+                if (docSnap.exists) { 
+                    console.log("loadUserData: Document snapshot exists. Data:", JSON.stringify(docSnap.data())); 
+                    const loaded = docSnap.data();
+                    
+                    appData.spiritual = loaded.appData && loaded.appData.spiritual ? JSON.parse(JSON.stringify(loaded.appData.spiritual)) : JSON.parse(JSON.stringify(defaultAppDataStructure.spiritual));
+                    appData.intellect = loaded.appData && loaded.appData.intellect ? JSON.parse(JSON.stringify(loaded.appData.intellect)) : JSON.parse(JSON.stringify(defaultAppDataStructure.intellect));
+                    appData.combat = loaded.appData && loaded.appData.combat ? JSON.parse(JSON.stringify(loaded.appData.combat)) : JSON.parse(JSON.stringify(defaultAppDataStructure.combat));
+
+                    characterLevel = loaded.characterLevel !== undefined ? loaded.characterLevel : 0;
+                    currentRank = loaded.currentRank || "E";
+                    nextTaskId = loaded.nextTaskId !== undefined ? loaded.nextTaskId : 0;
+                    currentIntellectPoints = loaded.currentIntellectPoints !== undefined ? loaded.currentIntellectPoints : 0;
+                    currentCombatLevel = loaded.currentCombatLevel !== undefined ? loaded.currentCombatLevel : 0;
+                    currentSpiritualLevel = loaded.currentSpiritualLevel !== undefined ? loaded.currentSpiritualLevel : 0;
+                    
+                    console.log("loadUserData: Local variables AFTER loading Firestore data:"); 
+                    console.log("appData:", JSON.parse(JSON.stringify(appData)));
+                    console.log("characterLevel:", characterLevel, "currentRank:", currentRank, "nextTaskId:", nextTaskId);
+                    console.log("currentIntellectPoints:", currentIntellectPoints);
+                    console.log("currentCombatLevel:", currentCombatLevel);
+                    console.log("currentSpiritualLevel:", currentSpiritualLevel);
+
+
+                    const loadedUsername = loaded.username || "";
+                    if (currentUser && !currentUser.displayName && loadedUsername) {
+                        try {
+                            await currentUser.updateProfile({ displayName: loadedUsername });
+                            console.log("User profile displayName updated with username from Firestore.");
+                            if (topUsernameDisplayElement) topUsernameDisplayElement.textContent = loadedUsername; 
+                        } catch (profileError) {
+                            console.error("Error updating user profile displayName:", profileError);
+                        }
+                    } else if (currentUser && currentUser.displayName && topUsernameDisplayElement) {
+                         if (topUsernameDisplayElement) topUsernameDisplayElement.textContent = currentUser.displayName;
+                    }
+
+                    console.log("User data successfully applied to local state.");
+                } else {
+                    console.log("No data for this user in Firestore, using defaults and saving initial state at path:", userDocRef.path);
+                    resetLocalDataToDefault(); 
+                    await saveUserData(userId); 
+                    console.log("loadUserData: Saved default data for new user.");
+                }
+            } catch (error) {
+                console.error("Error loading user data:", error);
+                showUserMessage("Ошибка загрузки прогресса. Используются значения по умолчанию.", "error");
+                resetLocalDataToDefault();
+            } finally {
+                console.log("loadUserData: Calling renderAllTasksAndLevels() in finally block."); 
+                renderAllTasksAndLevels();
+            }
+        }
+
+        function resetLocalDataToDefault() {
+            appData = JSON.parse(JSON.stringify(defaultAppDataStructure)); 
+            characterLevel = 0;
+            currentRank = "E";
+            nextTaskId = 0;
+            currentIntellectPoints = 0;
+            currentCombatLevel = 0;
+            currentSpiritualLevel = 0;
+            
+            if (intellectAuraGroup) while(intellectAuraGroup.children.length > 0) { const child = intellectAuraGroup.children[0]; intellectAuraGroup.remove(child); if(child.geometry) child.geometry.dispose(); if(child.material) child.material.dispose(); }
+            if (combatAuraGroup) while(combatAuraGroup.children.length > 0) { const child = combatAuraGroup.children[0]; combatAuraGroup.remove(child); if(child.geometry) child.geometry.dispose(); if(child.material) child.material.dispose(); }
+            if (spiritualAuraGroup) while(spiritualAuraGroup.children.length > 0) { const child = spiritualAuraGroup.children[0]; spiritualAuraGroup.remove(child); if(child.geometry) child.geometry.dispose(); if(child.material) child.material.dispose(); }
+
+            console.log("Local data reset to default.");
+        }
+
+        function renderAllTasksAndLevels() {
+            console.log("renderAllTasksAndLevels: Starting render. Current characterLevel:", characterLevel, "Intellect Points:", currentIntellectPoints); 
+            renderTasks('spiritualTaskList', appData.spiritual.tasks, 'spiritual');
+            
+            const activeIntellectTabButton = document.querySelector('#intellectModal .intellect-tabs button.active-tab');
+            const activeIntellectTab = activeIntellectTabButton ? activeIntellectTabButton.dataset.tab : 'memory';
+            switchIntellectTab(activeIntellectTab); 
+
+            renderTasks('combatTaskList', appData.combat.tasks, 'combat');
+
+            updateCharacterLevelAndRank(); 
+            recalculateAndDisplaySpiritualLevel();
+            recalculateAndDisplayCombatLevel();
+            updateIntellectAura(0); 
+            console.log("renderAllTasksAndLevels: Finished render."); 
+        }
+
+
+        // --- Existing Functions (potentially modified for Firebase) ---
+
         function formatTime(totalSeconds) {
             const minutes = Math.floor(totalSeconds / 60);
             const seconds = totalSeconds % 60;
@@ -802,17 +1121,17 @@
         function playTimerEndSound() {
             if (typeof Tone !== 'undefined' && Tone && Tone.Synth) {
                  if (!timerSoundSynth) {
-                    timerSoundSynth = new Tone.Synth({
-                        oscillator: { type: "sine" },
-                        envelope: { attack: 0.005, decay: 0.1, sustain: 0.01, release: 0.1 }
-                    }).toDestination();
-                }
-                const now = Tone.now();
-                timerSoundSynth.triggerAttackRelease("C5", "16n", now);
-                timerSoundSynth.triggerAttackRelease("C5", "16n", now + 0.15);
-                timerSoundSynth.triggerAttackRelease("G5", "8n", now + 0.3);
+                     timerSoundSynth = new Tone.Synth({
+                         oscillator: { type: "sine" },
+                         envelope: { attack: 0.005, decay: 0.1, sustain: 0.01, release: 0.1 }
+                     }).toDestination();
+                 }
+                 const now = Tone.now();
+                 timerSoundSynth.triggerAttackRelease("C5", "16n", now);
+                 timerSoundSynth.triggerAttackRelease("C5", "16n", now + 0.15);
+                 timerSoundSynth.triggerAttackRelease("G5", "8n", now + 0.3);
             } else {
-                console.warn("Tone.js не загружен или Synth не доступен. Звук таймера не будет воспроизведен.");
+                 console.warn("Tone.js не загружен или Synth не доступен. Звук таймера не будет воспроизведен.");
             }
         }
         function setGlobalTimerProgress(percent) {
@@ -882,8 +1201,8 @@
             stopGlobalTimer();
             globalTimerTotalSeconds = parseInt(globalTimerDurationInput.value, 10);
              if (isNaN(globalTimerTotalSeconds) || globalTimerTotalSeconds < 1) {
-                globalTimerTotalSeconds = 120;
-                globalTimerDurationInput.value = globalTimerTotalSeconds;
+                 globalTimerTotalSeconds = 120;
+                 globalTimerDurationInput.value = globalTimerTotalSeconds;
             }
             globalTimerRemainingSeconds = globalTimerTotalSeconds;
             updateGlobalTimerDisplay();
@@ -941,9 +1260,10 @@
                 metalness: 0.3
             });
             const placeholder = new THREE.Mesh(geometry, material);
-            placeholder.position.y = 1.8 / 2;
+            placeholder.name = "placeholderBox"; 
+            placeholder.position.y = 1.8 / 2; 
             scene.add(placeholder);
-            loadedModel = placeholder;
+            loadedModel = placeholder; 
             showUserMessage("3D модель не загружена. Отображается заменитель.", "warning");
             if(loadingIndicator) loadingIndicator.style.display = 'none';
         }
@@ -994,6 +1314,7 @@
                 function (gltf) {
                     loadedModel = gltf.scene;
                     loadedModel.name = "importedHumanoid";
+                    console.log("3D модель успешно загружена:", loadedModel); 
 
                     loadedModel.traverse(function (child) {
                         if (child.isMesh) {
@@ -1043,13 +1364,16 @@
                     }
                 },
                 (error) => {
-                    console.error('Ошибка загрузки 3D модели:', error);
+                    console.error('КРИТИЧЕСКАЯ ОШИБКА ЗАГРУЗКИ 3D МОДЕЛИ:', error);
+                    console.error('URL модели:', modelUrl);
+                    console.error('Объект ошибки:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+
                     if(loadingIndicator) {
-                         loadingIndicator.innerHTML = 'Ошибка загрузки 3D модели!<br>Проверьте консоль (F12) и URL модели.';
+                         loadingIndicator.innerHTML = 'Ошибка загрузки 3D модели!<br>См. консоль (F12).';
                          loadingIndicator.style.color = '#FF5555';
                     }
-                    showUserMessage('Ошибка загрузки 3D модели! Проверьте консоль (F12).', 'error');
-                    addPlaceholderObject();
+                    showUserMessage('Ошибка загрузки 3D модели! Проверьте консоль (F12).', 'error', 0); 
+                    addPlaceholderObject(); 
                 }
             );
 
@@ -1059,13 +1383,10 @@
             controls.minDistance = 0.5; controls.maxDistance = 20;
 
             window.addEventListener('resize', onWindowResize, false);
-            setupEventListeners();
-            updateCharacterLevelAndRank(); // Initial call
+            setupEventListeners(); 
             animate();
 
             try { initStarryBackground(); } catch(e) { console.error("Ошибка инициализации звездного фона:", e); }
-
-            // switchAttributeContent('intellect'); // No default panel to open
             console.log("FN_INIT: Инициализация завершена.");
         };
 
@@ -1135,7 +1456,7 @@
         `;
 
         function createGroundImpulse() {
-            if (!loadedModel || !groundImpulseGroup) return;
+            if (!loadedModel || loadedModel.name === "placeholderBox") return; 
 
             const modelBox = new THREE.Box3().setFromObject(loadedModel);
             const modelBaseY = modelBox.min.y;
@@ -1199,7 +1520,7 @@
         }
 
         createLightningBolt = function(group) {
-            if (!loadedModel) return;
+            if (!loadedModel || loadedModel.name === "placeholderBox") return;
 
             const points = [];
             const modelBox = new THREE.Box3().setFromObject(loadedModel);
@@ -1286,14 +1607,13 @@
             }
         };
 
-        function updateIntellectAura(points = 1) {
+        function updateIntellectAura(points = 0) { 
             currentIntellectPoints += points;
             currentIntellectPoints = Math.max(0, currentIntellectPoints);
-            updateCharacterLevelAndRank();
         }
 
         function animateIntellectAura() {
-             if (!intellectAuraGroup || !loadedModel) return;
+             if (!intellectAuraGroup || !loadedModel || loadedModel.name === "placeholderBox") return;
 
             for (let i = intellectAuraGroup.children.length - 1; i >= 0; i--) {
                 const bolt = intellectAuraGroup.children[i];
@@ -1321,18 +1641,27 @@
                  }
             }
 
-            const targetBoltCount = Math.floor(currentIntellectPoints * 2);
+            const targetBoltCount = Math.floor(currentIntellectPoints * 2); 
             const currentBoltCount = intellectAuraGroup.children.length;
-            const boltsToActuallyAdd = Math.min(2, targetBoltCount - currentBoltCount);
+            const boltsToActuallyAdd = Math.min(2, targetBoltCount - currentBoltCount); 
 
             if (currentBoltCount < Math.min(targetBoltCount, MAX_TOTAL_BOLTS) && boltsToActuallyAdd > 0) {
                 for(let k=0; k < boltsToActuallyAdd ; k++){
                      createLightningBolt(intellectAuraGroup);
                 }
+            } else if (currentBoltCount > targetBoltCount && currentBoltCount > 0) { 
+                 const boltsToRemove = Math.min(2, currentBoltCount - targetBoltCount);
+                 for (let k = 0; k < boltsToRemove; k++) {
+                    if (intellectAuraGroup.children.length > 0) {
+                        const boltToRemove = intellectAuraGroup.children[0]; 
+                        intellectAuraGroup.remove(boltToRemove);
+                        boltToRemove.geometry.dispose();
+                        boltToRemove.material.dispose();
+                    }
+                 }
             }
         };
 
-        let currentCombatLevel = 0;
 
         function handleCombatTaskCountChange(taskId, newCountString) {
             const task = appData.combat.tasks.find(t => t.id == taskId);
@@ -1345,26 +1674,9 @@
                 return;
             }
 
-            const oldCount = task.count;
-            const diff = newCount - oldCount;
-            task.count = newCount;
-
-            if (diff > 0) {
-                for (let i = 0; i < diff; i++) { createFlameParticle(); }
-            } else if (diff < 0) {
-                const particlesToRemove = Math.abs(diff);
-                for (let i = 0; i < particlesToRemove && combatAuraGroup.children.length > 0; i++) {
-                    const particleToRemove = combatAuraGroup.children[combatAuraGroup.children.length - 1 - i];
-                    if (particleToRemove) {
-                         combatAuraGroup.remove(particleToRemove);
-                         particleToRemove.geometry.dispose();
-                         if (particleToRemove.material.map) particleToRemove.material.map.dispose();
-                         particleToRemove.material.dispose();
-                    }
-                }
-            }
+            task.count = newCount; 
             recalculateAndDisplayCombatLevel();
-            updateCharacterLevelAndRank();
+            updateCharacterLevelAndRank(); 
         }
 
         function recalculateAndDisplayCombatLevel() {
@@ -1372,12 +1684,25 @@
             appData.combat.tasks.forEach(task => {
                 totalCombatPoints += parseInt(task.count, 10) || 0;
             });
-            currentCombatLevel = totalCombatPoints;
-            showUserMessage(`Аура Силы: ${currentCombatLevel.toFixed(0)}`, "success", 1000);
+            currentCombatLevel = totalCombatPoints; 
+            showUserMessage(`Аура Силы: ${currentCombatLevel.toFixed(0)}`, "info", 1000);
+
+            if (combatAuraGroup) {
+                while (combatAuraGroup.children.length > currentCombatLevel) {
+                    const particleToRemove = combatAuraGroup.children[combatAuraGroup.children.length - 1];
+                    combatAuraGroup.remove(particleToRemove);
+                    if (particleToRemove.geometry) particleToRemove.geometry.dispose();
+                    if (particleToRemove.material && particleToRemove.material.map) particleToRemove.material.map.dispose();
+                    if (particleToRemove.material) particleToRemove.material.dispose();
+                }
+                while (combatAuraGroup.children.length < currentCombatLevel) {
+                    createFlameParticle();
+                }
+            }
         }
 
         createFlameParticle = function() {
-            if (!loadedModel || !combatAuraGroup) return;
+            if (!loadedModel || !combatAuraGroup || loadedModel.name === "placeholderBox") return;
 
             const modelBox = new THREE.Box3().setFromObject(loadedModel);
             const modelCenter = modelBox.getCenter(new THREE.Vector3());
@@ -1392,7 +1717,7 @@
                 blending: THREE.AdditiveBlending,
                 depthWrite: false,
                 transparent: true,
-                opacity: 0.85, // Initial opacity
+                opacity: 0.85,
                 vertexColors: true
             });
 
@@ -1420,13 +1745,13 @@
                     (Math.random() - 0.5) * 0.003
                 ),
                 initialY: startY,
-                initialOpacity: particleMaterial.opacity, // Store initial opacity
+                initialOpacity: particleMaterial.opacity,
                 initialSize: particleMaterial.size,
                 maxHeight: modelHeadY + modelSize.y * 0.6,
                 modelCenter: modelCenter.clone(),
                 baseRadius: startRadius,
                 initialColor: flameColor.clone(),
-                modelSizeY: modelSize.y // Store modelSize.y for fade calculation
+                modelSizeY: modelSize.y
             };
             if (combatAuraGroup) combatAuraGroup.add(particle);
         };
@@ -1460,7 +1785,7 @@
         };
 
         animateCombatAura = function() {
-            if (!combatAuraGroup || !loadedModel) return;
+            if (!combatAuraGroup || !loadedModel || loadedModel.name === "placeholderBox") return;
 
             for (let i = combatAuraGroup.children.length - 1; i >= 0; i--) {
                 const particle = combatAuraGroup.children[i];
@@ -1492,7 +1817,6 @@
             }
         };
 
-        let currentSpiritualLevel = 0;
 
         function handleSpiritualTaskCountChange(taskId, newCountString) {
             const task = appData.spiritual.tasks.find(t => t.id == taskId);
@@ -1504,29 +1828,9 @@
                 if (inputElement) inputElement.value = task.count;
                 return;
             }
-
-            const oldCount = task.count;
-            const diff = newCount - oldCount;
-            task.count = newCount;
-
-            if (diff > 0) {
-                for (let i = 0; i < diff; i++) {
-                    createSpiritParticle();
-                }
-            } else if (diff < 0) {
-                const particlesToRemove = Math.abs(diff);
-                 for (let i = 0; i < particlesToRemove && spiritualAuraGroup.children.length > 0; i++) {
-                    const particleToRemove = spiritualAuraGroup.children[spiritualAuraGroup.children.length - 1 - i];
-                     if (particleToRemove) {
-                         spiritualAuraGroup.remove(particleToRemove);
-                         particleToRemove.geometry.dispose();
-                         if (particleToRemove.material.map) particleToRemove.material.map.dispose();
-                         particleToRemove.material.dispose();
-                     }
-                }
-            }
+            task.count = newCount; 
             recalculateAndDisplaySpiritualLevel();
-            updateCharacterLevelAndRank();
+            updateCharacterLevelAndRank(); 
         }
 
         function recalculateAndDisplaySpiritualLevel() {
@@ -1534,12 +1838,25 @@
             appData.spiritual.tasks.forEach(task => {
                 totalSpiritualPoints += parseInt(task.count, 10) || 0;
             });
-            currentSpiritualLevel = totalSpiritualPoints;
-            showUserMessage(`Аура Духовности: ${currentSpiritualLevel.toFixed(0)}`, "success", 1000);
+            currentSpiritualLevel = totalSpiritualPoints; 
+            showUserMessage(`Аура Духовности: ${currentSpiritualLevel.toFixed(0)}`, "info", 1000);
+
+            if (spiritualAuraGroup) {
+                while (spiritualAuraGroup.children.length > currentSpiritualLevel) {
+                    const particleToRemove = spiritualAuraGroup.children[spiritualAuraGroup.children.length - 1];
+                    spiritualAuraGroup.remove(particleToRemove);
+                    if (particleToRemove.geometry) particleToRemove.geometry.dispose();
+                    if (particleToRemove.material && particleToRemove.material.map) particleToRemove.material.map.dispose();
+                    if (particleToRemove.material) particleToRemove.material.dispose();
+                }
+                while (spiritualAuraGroup.children.length < currentSpiritualLevel) {
+                    createSpiritParticle();
+                }
+            }
         }
 
         createSpiritParticle = function() {
-            if (!loadedModel || !spiritualAuraGroup) return;
+            if (!loadedModel || !spiritualAuraGroup || loadedModel.name === "placeholderBox") return;
 
             const modelBox = new THREE.Box3().setFromObject(loadedModel);
             const modelCenter = modelBox.getCenter(new THREE.Vector3());
@@ -1554,7 +1871,7 @@
                 blending: THREE.AdditiveBlending,
                 depthWrite: false,
                 transparent: true,
-                opacity: 0.85, // Initial opacity
+                opacity: 0.85,
                 color: SPIRIT_COLOR,
                 vertexColors: false
             });
@@ -1579,24 +1896,24 @@
                     (Math.random() - 0.5) * 0.0025
                 ),
                 initialY: startY,
-                initialOpacity: particleMaterial.opacity, // Store initial opacity
+                initialOpacity: particleMaterial.opacity,
                 initialSize: particleMaterial.size,
                 maxHeight: modelHeadY + modelSize.y * 0.6,
                 modelCenter: modelCenter.clone(),
                 baseRadius: startRadius,
-                modelSizeY: modelSize.y // Store modelSize.y for fade calculation
+                modelSizeY: modelSize.y
             };
 
             if(spiritualAuraGroup) spiritualAuraGroup.add(particle);
         };
 
         animateSpiritualAura = function() {
-            if (!spiritualAuraGroup || !loadedModel) return;
+            if (!spiritualAuraGroup || !loadedModel || loadedModel.name === "placeholderBox") return;
 
             for (let i = spiritualAuraGroup.children.length - 1; i >= 0; i--) {
                 const particle = spiritualAuraGroup.children[i];
                 const userData = particle.userData;
-                const fadeStartHeight = userData.maxHeight - (userData.modelSizeY * 0.25); // Start fading in the last 25%
+                const fadeStartHeight = userData.maxHeight - (userData.modelSizeY * 0.25);
 
                 particle.position.add(userData.velocity);
 
@@ -1606,7 +1923,7 @@
                     const resetRadius = userData.baseRadius * (0.8 + Math.random() * 0.4);
                     particle.position.x = userData.modelCenter.x + Math.cos(resetAngle) * resetRadius;
                     particle.position.z = userData.modelCenter.z + Math.sin(resetAngle) * resetRadius;
-                    particle.material.opacity = userData.initialOpacity; // Reset opacity
+                    particle.material.opacity = userData.initialOpacity;
                     particle.material.size = userData.initialSize;
                     userData.velocity.y = 0.018 + Math.random() * 0.01;
                 } else if (particle.position.y > fadeStartHeight) {
@@ -1624,7 +1941,7 @@
             appData.spiritual.tasks.forEach(task => totalPointsForLevelCalc += task.count);
             appData.combat.tasks.forEach(task => totalPointsForLevelCalc += task.count);
             appData.intellect.memory.toLearn.forEach(task => totalPointsForLevelCalc += task.count);
-            appData.intellect.memory.learned.forEach(task => totalPointsForLevelCalc += 1);
+            appData.intellect.memory.learned.forEach(task => totalPointsForLevelCalc += 1); 
             appData.intellect.analysis.tasks.forEach(task => totalPointsForLevelCalc += task.count);
             appData.intellect.tafakkur.tasks.forEach(task => totalPointsForLevelCalc += task.count);
 
@@ -1643,11 +1960,12 @@
             else if (characterLevel >= rankThresholds.D) newRank = "D";
             currentRank = newRank;
 
-            // Update level display in all relevant places (modals)
             const rankHTML = `Уровень: ${characterLevel} (<span class="rank-${currentRank}">Ранг: ${currentRank}</span>)`;
             if(levelRankDisplaySpiritual) levelRankDisplaySpiritual.innerHTML = rankHTML;
             if(levelRankDisplayIntellect) levelRankDisplayIntellect.innerHTML = rankHTML;
             if(levelRankDisplayCombat) levelRankDisplayCombat.innerHTML = rankHTML;
+            
+            saveCurrentStateIfLoggedIn();
         }
 
         function showLevelUpAnimation() {
@@ -1755,6 +2073,10 @@
                 return;
             }
             taskListDiv.innerHTML = '';
+            if (!tasks) { 
+                console.warn(`renderTasks: tasks array is undefined for ${taskListId}`);
+                return;
+            }
             tasks.forEach(task => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = `task-item`;
@@ -1771,7 +2093,7 @@
                                ${subCategory ? `data-subcategory="${subCategory}"` : ''}>
                     `;
                 } else {
-                    counterElement = `<span class="task-counter">${task.count}</span>`;
+                    counterElement = `<span class="task-counter">${task.count}</span>`; 
                 }
 
                 itemDiv.innerHTML = `
@@ -1790,11 +2112,15 @@
 
         renderMemoryLearned = function(listId, items) {
              const listDiv = document.getElementById(listId);
-               if (!listDiv) {
-                console.warn(`renderMemoryLearned: Элемент списка ${listId} не найден.`);
-                return;
+                if (!listDiv) {
+                 console.warn(`renderMemoryLearned: Элемент списка ${listId} не найден.`);
+                 return;
             }
             listDiv.innerHTML = '';
+            if (!items) {
+                console.warn(`renderMemoryLearned: items array is undefined for ${listId}`);
+                return;
+            }
             items.forEach(item => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'memory-item';
@@ -1806,18 +2132,19 @@
             });
         };
 
-        // No longer switching content in a single panel, but opening modals
-        // switchAttributeContent is effectively replaced by modal open/close logic
 
         function openModal(modalElement) {
             if (modalElement) {
                 modalElement.classList.add('open');
-                // Refresh content if needed when opening
-                const attributeType = modalElement.id.replace('Modal', ''); // e.g., "spiritual"
+                const attributeType = modalElement.id.replace('Modal', '');
                 if (attributeType === 'spiritual') renderTasks('spiritualTaskList', appData.spiritual.tasks, 'spiritual');
-                else if (attributeType === 'intellect') switchIntellectTab('memory'); // Default to memory tab
+                else if (attributeType === 'intellect') {
+                    const activeIntellectTabButton = document.querySelector('#intellectModal .intellect-tabs button.active-tab');
+                    const activeIntellectTab = activeIntellectTabButton ? activeIntellectTabButton.dataset.tab : 'memory';
+                    switchIntellectTab(activeIntellectTab);
+                }
                 else if (attributeType === 'combat') renderTasks('combatTaskList', appData.combat.tasks, 'combat');
-                updateCharacterLevelAndRank(); // Update rank display in the opened modal
+                updateCharacterLevelAndRank(); 
             }
         }
 
@@ -1829,23 +2156,24 @@
 
 
         setupEventListeners = function() {
-            // Event listeners for new attribute modal toggles
+            // Modal Toggles
             if (toggleSpiritualModalBtn) toggleSpiritualModalBtn.onclick = () => openModal(spiritualModal);
             if (toggleIntellectModalBtn) toggleIntellectModalBtn.onclick = () => openModal(intellectModal);
             if (toggleCombatModalBtn) toggleCombatModalBtn.onclick = () => openModal(combatModal);
+            if (toggleAuthModalBtnEl) toggleAuthModalBtnEl.onclick = () => openModal(authModalEl);
 
-            // Event listeners for modal close buttons
+
+            // Modal Close Buttons
             document.querySelectorAll('.modal-close-btn').forEach(btn => {
                 btn.onclick = () => {
                     const modalId = btn.dataset.modalId;
                     const modalToClose = document.getElementById(modalId);
                     if (modalToClose) {
-                        if (modalId === 'globalTimerModal') stopGlobalTimer(); // Stop timer if closing its modal
+                        if (modalId === 'globalTimerModal') stopGlobalTimer();
                         closeModal(modalToClose);
                     }
                 };
             });
-            // Close modal if clicked on backdrop
             document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
                 backdrop.onclick = (event) => {
                     if (event.target === backdrop) {
@@ -1862,14 +2190,14 @@
                     globalTimerModal.classList.add('open');
                     let currentDuration = parseInt(globalTimerDurationInput.value, 10);
                      if (isNaN(currentDuration) || currentDuration < 1) {
-                        currentDuration = 120;
-                        globalTimerDurationInput.value = currentDuration;
+                         currentDuration = 120;
+                         globalTimerDurationInput.value = currentDuration;
                     }
                     globalTimerTotalSeconds = currentDuration;
                     globalTimerRemainingSeconds = currentDuration;
                     updateGlobalTimerDisplay();
                      if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
-                        Tone.start().then(() => console.log("Tone.js context started by opening timer modal."));
+                         Tone.start().then(() => console.log("Tone.js context started by opening timer modal."));
                     }
                 };
             }
@@ -1909,13 +2237,151 @@
             }
 
 
+            // Auth Modal Listeners
+            if (showRegisterLinkEl) {
+                showRegisterLinkEl.onclick = (e) => { e.preventDefault(); loginFormEl.style.display = 'none'; registerFormEl.style.display = 'block'; };
+            }
+            if (showLoginLinkEl) {
+                showLoginLinkEl.onclick = (e) => { e.preventDefault(); registerFormEl.style.display = 'none'; loginFormEl.style.display = 'block'; };
+            }
+
+            if (registerBtnEl) {
+                registerBtnEl.onclick = () => {
+                    console.log("Кнопка 'Зарегистрироваться' нажата.");
+                    const usernameInput = document.getElementById('registerUsername'); 
+                    const emailInput = document.getElementById('registerEmail');
+                    const passwordInput = document.getElementById('registerPassword');
+                    
+                    if (!usernameInput || !emailInput || !passwordInput) { 
+                        console.error("Не найдены поля имени пользователя, email или пароля для регистрации!");
+                        showUserMessage("Ошибка: не найдены все поля ввода.", "error");
+                        return;
+                    }
+
+                    const username = usernameInput.value.trim(); 
+                    const email = emailInput.value.trim();
+                    const password = passwordInput.value; 
+
+                    console.log("Попытка регистрации с именем:", username, "email:", email); 
+
+                    if (!username || !email || !password) { 
+                        showUserMessage("Пожалуйста, введите имя пользователя, email и пароль.", "warning");
+                        return;
+                    }
+                    if (password.length < 6) {
+                        showUserMessage("Пароль должен содержать не менее 6 символов.", "warning");
+                        return;
+                    }
+
+                    if (!firebaseAuth) {
+                        showUserMessage("Firebase Auth не инициализирован.", "error");
+                        console.error("firebaseAuth не определен при попытке регистрации.");
+                        return;
+                    }
+                    
+                    showUserMessage("Регистрация...", "info", 0); 
+
+                    firebaseAuth.createUserWithEmailAndPassword(email, password)
+                        .then(async (userCredential) => { 
+                            const user = userCredential.user;
+                            console.log("Пользователь создан в Auth:", user);
+                            
+                            try {
+                                await user.updateProfile({ displayName: username });
+                                console.log("DisplayName пользователя обновлен:", username);
+                                if (currentUser) currentUser.displayName = username;
+
+
+                                showUserMessage(`Добро пожаловать, ${username}!`, "success", 3500);
+                                closeModal(authModalEl); 
+                            } catch (profileError) {
+                                console.error("Ошибка обновления профиля пользователя:", profileError);
+                                showUserMessage("Ошибка обновления профиля.", "error");
+                                showUserMessage(`Добро пожаловать, ${email}! (имя не установлено)`, "warning", 3500);
+                                closeModal(authModalEl);
+                            }
+                        })
+                        .catch((error) => {
+                            console.error("Ошибка регистрации Firebase:", error.code, error.message);
+                            let friendlyMessage = `Ошибка регистрации: ${error.message}`; 
+                            if (error.code === 'auth/email-already-in-use') {
+                                friendlyMessage = "Ошибка регистрации: Этот email уже используется. Попробуйте войти или использовать другой email.";
+                            } else if (error.code === 'auth/weak-password') {
+                                friendlyMessage = "Ошибка регистрации: Пароль слишком слабый. Используйте не менее 6 символов.";
+                            }
+                            showUserMessage(friendlyMessage, "error");
+                        });
+                };
+            }
+
+            if (loginBtnEl) {
+                loginBtnEl.onclick = () => {
+                    console.log("Кнопка 'Войти' нажата.");
+                    const emailInput = document.getElementById('loginEmail');
+                    const passwordInput = document.getElementById('loginPassword');
+
+                    if (!emailInput || !passwordInput) {
+                        console.error("Не найдены поля email или пароля для входа!");
+                        showUserMessage("Ошибка: не найдены поля ввода.", "error");
+                        return;
+                    }
+                    const email = emailInput.value.trim();
+                    const password = passwordInput.value;
+                    console.log("Попытка входа с email:", email);
+
+                    if (!email || !password) {
+                        showUserMessage("Пожалуйста, введите email и пароль.", "warning");
+                        return;
+                    }
+
+                    if (!firebaseAuth) { showUserMessage("Firebase Auth не инициализирован.", "error"); return; }
+                    
+                    showUserMessage("Вход...", "info", 0);
+
+                    firebaseAuth.signInWithEmailAndPassword(email, password)
+                        .then((userCredential) => {
+                            const user = userCredential.user;
+                            console.log("Вход успешен:", user);
+                            showUserMessage(`Добро пожаловать, ${user.displayName || user.email}!`, "success", 3000); 
+                            closeModal(authModalEl); 
+                        })
+                        .catch((error) => {
+                            console.error("Ошибка входа Firebase:", error.code, error.message);
+                            let friendlyMessage = `Ошибка входа: ${error.message}`; 
+                            if (error.code === 'auth/invalid-login-credentials' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') { // ИЗМЕНЕНО: Добавлен auth/invalid-credential
+                                friendlyMessage = "Ошибка входа: Неверный email или пароль. Пожалуйста, проверьте введенные данные или зарегистрируйтесь.";
+                            } else if (error.code === 'auth/too-many-requests') {
+                                friendlyMessage = "Слишком много неудачных попыток входа. Пожалуйста, попробуйте позже.";
+                            }
+                            showUserMessage(friendlyMessage, "error");
+                        });
+                };
+            }
+
+            if (logoutBtnEl) {
+                logoutBtnEl.onclick = () => {
+                    if (!firebaseAuth) { showUserMessage("Firebase Auth не инициализирован.", "error"); return; }
+                    firebaseAuth.signOut()
+                        .then(() => {
+                            console.log("Выход успешен.");
+                            showUserMessage("Вы вышли из системы.", "info"); 
+                        })
+                        .catch((error) => {
+                            console.error("Ошибка выхода:", error);
+                            showUserMessage(`Ошибка выхода: ${error.message}`, "error");
+                        });
+                };
+            }
+
+
+            // Task Management Listeners
             document.querySelectorAll('.intellect-tabs button').forEach(tabBtn => {
                 tabBtn.onclick = () => switchIntellectTab(tabBtn.dataset.tab);
             });
 
-            setupTaskAddition('addSpiritualTaskBtn', 'newSpiritualTaskInput', appData.spiritual.tasks, 'spiritualTaskList', 'spiritual');
-            setupTaskAddition('addCombatTaskBtn', 'newCombatTaskInput', appData.combat.tasks, 'combatTaskList', 'combat');
-            setupTaskAddition('addMemoryToLearnBtn', 'newMemoryToLearnInput', appData.intellect.memory.toLearn, 'memoryToLearnList', 'intellect', 'memory');
+            setupTaskAddition('addSpiritualTaskBtn', 'newSpiritualTaskInput', () => appData.spiritual.tasks, 'spiritualTaskList', 'spiritual');
+            setupTaskAddition('addCombatTaskBtn', 'newCombatTaskInput', () => appData.combat.tasks, 'combatTaskList', 'combat');
+            setupTaskAddition('addMemoryToLearnBtn', 'newMemoryToLearnInput', () => appData.intellect.memory.toLearn, 'memoryToLearnList', 'intellect', 'memory');
 
             const addMemoryLearnedBtn = document.getElementById('addMemoryLearnedBtn');
             if(addMemoryLearnedBtn) addMemoryLearnedBtn.onclick = () => {
@@ -1923,11 +2389,11 @@
                 if(!input) return;
                 const text = input.value.trim();
                 if (text) {
-                    appData.intellect.memory.learned.push({ id: `learned-${nextTaskId++}`, text: text, count: 1 });
+                    appData.intellect.memory.learned.push({ id: `learned-${nextTaskId++}`, text: text, count: 1 }); 
                     renderMemoryLearned('memoryLearnedList', appData.intellect.memory.learned);
                     input.value = '';
-                    updateIntellectAura(1);
-                    updateCharacterLevelAndRank();
+                    updateIntellectAura(1); 
+                    updateCharacterLevelAndRank(); 
                 }
             };
             const memoryLearnedListEl = document.getElementById('memoryLearnedList');
@@ -1938,14 +2404,14 @@
                     if (itemIndex > -1) {
                         appData.intellect.memory.learned.splice(itemIndex, 1);
                         renderMemoryLearned('memoryLearnedList', appData.intellect.memory.learned);
-                        updateIntellectAura(-1);
-                        updateCharacterLevelAndRank();
+                        updateIntellectAura(-1); 
+                        updateCharacterLevelAndRank(); 
                     }
                 }
             });
 
-            setupTaskAddition('addAnalysisTaskBtn', 'newAnalysisTaskInput', appData.intellect.analysis.tasks, 'analysisTaskList', 'intellect', 'analysis');
-            setupTaskAddition('addTafakkurTaskBtn', 'newTafakkurTaskInput', appData.intellect.tafakkur.tasks, 'tafakkurTaskList', 'intellect', 'tafakkur');
+            setupTaskAddition('addAnalysisTaskBtn', 'newAnalysisTaskInput', () => appData.intellect.analysis.tasks, 'analysisTaskList', 'intellect', 'analysis');
+            setupTaskAddition('addTafakkurTaskBtn', 'newTafakkurTaskInput', () => appData.intellect.tafakkur.tasks, 'tafakkurTaskList', 'intellect', 'tafakkur');
 
             document.body.addEventListener('click', function(event) {
                 if (event.target.classList.contains('plus-btn')) {
@@ -1970,7 +2436,7 @@
                         else if (attribute === 'intellect') {
                             task.count = newCount;
                             updateIntellectAura(1);
-                            updateCharacterLevelAndRank();
+                            updateCharacterLevelAndRank(); 
                             const inputElement = document.querySelector(`#intellectModal .task-counter-input[data-task-id="${taskId}"][data-attribute="intellect"][data-subcategory="${subCategory}"]`);
                             if (inputElement) inputElement.value = newCount;
                         }
@@ -1983,18 +2449,15 @@
                     const subCategory = event.target.dataset.subcategory;
 
                     let taskArray;
-                    let particleGroup;
                     let listId;
                     let pointsToSubtractFromIntellect = 0;
 
 
                     if (attribute === 'spiritual') {
                         taskArray = appData.spiritual.tasks;
-                        particleGroup = spiritualAuraGroup;
                         listId = 'spiritualTaskList';
                     } else if (attribute === 'combat') {
                         taskArray = appData.combat.tasks;
-                        particleGroup = combatAuraGroup;
                         listId = 'combatTaskList';
                     } else if (attribute === 'intellect' && subCategory) {
                         if (subCategory === 'memory') taskArray = appData.intellect.memory.toLearn;
@@ -2006,28 +2469,21 @@
                     const taskIndex = taskArray.findIndex(t => t.id == taskId);
                     if (taskIndex > -1) {
                         const removedTask = taskArray[taskIndex];
-                        const particlesToRemoveCount = removedTask.count;
+                        // const particlesToRemoveCount = removedTask.count; 
                         if (attribute === 'intellect') {
                             pointsToSubtractFromIntellect = removedTask.count;
                         }
                         taskArray.splice(taskIndex, 1);
 
-                        if (particleGroup && (attribute === 'spiritual' || attribute === 'combat')) {
-                            for (let i = 0; i < particlesToRemoveCount && particleGroup.children.length > 0; i++) {
-                                const particleToRemove = particleGroup.children[particleGroup.children.length - 1];
-                                if (particleToRemove) {
-                                    particleGroup.remove(particleToRemove);
-                                    particleToRemove.geometry.dispose();
-                                    if (particleToRemove.material.map) particleToRemove.material.map.dispose();
-                                    particleToRemove.material.dispose();
-                                }
-                            }
-                        }
-                        if (attribute === 'intellect') {
+                        if (attribute === 'spiritual') {
+                             recalculateAndDisplaySpiritualLevel(); 
+                        } else if (attribute === 'combat') {
+                             recalculateAndDisplayCombatLevel(); 
+                        } else if (attribute === 'intellect') {
                             updateIntellectAura(-pointsToSubtractFromIntellect);
                         }
                         renderTasks(listId, taskArray, attribute, subCategory);
-                        updateCharacterLevelAndRank();
+                        updateCharacterLevelAndRank(); 
                     }
                 }
             });
@@ -2053,9 +2509,9 @@
                                 const diff = newCount - task.count;
                                 task.count = newCount;
                                 updateIntellectAura(diff);
-                                updateCharacterLevelAndRank();
+                                updateCharacterLevelAndRank(); 
                              } else {
-                                target.value = task.count;
+                                target.value = task.count; 
                              }
                         }
                     }
@@ -2063,7 +2519,7 @@
             });
         };
 
-        setupTaskAddition = function(addBtnId, inputId, taskArray, listId, attributeType, subCategory = null) {
+        setupTaskAddition = function(addBtnId, inputId, getTaskArrayFn, listId, attributeType, subCategory = null) {
             const addBtn = document.getElementById(addBtnId);
             const inputEl = document.getElementById(inputId);
             if (!addBtn || !inputEl) {
@@ -2074,24 +2530,29 @@
             addBtn.onclick = () => {
                 const text = inputEl.value.trim();
                 if (text) {
-                    const newTask = { id: nextTaskId++, text: text, count: 0 };
+                    const taskArray = getTaskArrayFn();
+                    const newTask = { id: `${attributeType}-${subCategory || ''}-${nextTaskId++}`, text: text, count: 0 };
                     taskArray.push(newTask);
                     renderTasks(listId, taskArray, attributeType, subCategory);
-                    updateCharacterLevelAndRank();
                     inputEl.value = '';
+                    if (attributeType !== 'intellect') { 
+                        updateCharacterLevelAndRank(); 
+                    } else {
+                         saveCurrentStateIfLoggedIn(); 
+                    }
                 }
             };
         };
 
         switchIntellectTab = function(tabName) {
             document.querySelectorAll('#intellectModal .intellect-tabs button').forEach(btn => btn.classList.remove('active-tab'));
-            document.querySelectorAll('#intellectModal .intellect-tab-content').forEach(content => content.style.display = 'none'); // Hide all first
+            document.querySelectorAll('#intellectModal .intellect-tab-content').forEach(content => content.style.display = 'none');
 
             const activeTabButton = document.querySelector(`#intellectModal .intellect-tabs button[data-tab="${tabName}"]`);
             const activeTabContent = document.getElementById(`${tabName}TabContent`);
 
             if (activeTabButton) activeTabButton.classList.add('active-tab');
-            if (activeTabContent) activeTabContent.style.display = 'block'; // Show active
+            if (activeTabContent) activeTabContent.style.display = 'block';
 
             if (tabName === 'memory') {
                 renderTasks('memoryToLearnList', appData.intellect.memory.toLearn, 'intellect', 'memory');
@@ -2101,20 +2562,20 @@
             } else if (tabName === 'tafakkur') {
                 renderTasks('tafakkurTaskList', appData.intellect.tafakkur.tasks, 'intellect', 'tafakkur');
             }
-            updateCharacterLevelAndRank();
         };
 
         let messageTimeout;
         showUserMessage = function(message, type = 'info', duration = 3000) {
             if (messageArea) {
                 messageArea.textContent = message;
-                messageArea.className = 'show'; // Base class to make it visible
+                messageArea.classList.remove('text-green-400', 'bg-green-900', 'text-red-400', 'bg-red-900', 'text-yellow-400', 'bg-yellow-900', 'text-sky-400', 'bg-sky-900', 'bg-opacity-50');
+                
+                messageArea.classList.add('show'); 
 
-                // Add type-specific color classes
-                if (type === 'success') messageArea.classList.add('text-green-400', 'bg-green-900', 'bg-opacity-50');
-                else if (type === 'error') messageArea.classList.add('text-red-400', 'bg-red-900', 'bg-opacity-50');
-                else if (type === 'warning') messageArea.classList.add('text-yellow-400', 'bg-yellow-900', 'bg-opacity-50');
-                else messageArea.classList.add('text-sky-400', 'bg-sky-900', 'bg-opacity-50'); // Default info
+                if (type === 'success') messageArea.classList.add('text-green-300', 'bg-green-700', 'bg-opacity-70');
+                else if (type === 'error') messageArea.classList.add('text-red-300', 'bg-red-700', 'bg-opacity-70');
+                else if (type === 'warning') messageArea.classList.add('text-yellow-300', 'bg-yellow-700', 'bg-opacity-70');
+                else messageArea.classList.add('text-sky-300', 'bg-sky-700', 'bg-opacity-70'); 
 
                 clearTimeout(messageTimeout);
                 if (duration > 0) {
@@ -2129,9 +2590,11 @@
 
 
         window.onload = function() {
-            console.log("Событие window.onload. v9.69 (Глобальный Таймер UI Update)");
+            console.log("Событие window.onload. v9.70+Firebase");
             try {
-                init();
+                initializeFirebase(); 
+                init(); 
+                updateAuthUI(false); 
             } catch (e) {
                 console.error("КРИТИЧЕСКАЯ ОШИБКА ПРИ ЗАГРУЗКЕ:", e);
                 const ld = document.getElementById('loadingIndicator');
@@ -2140,9 +2603,10 @@
                     ld.style.color = 'red';
                     ld.style.display = 'block';
                 }
+                 showUserMessage("Критическая ошибка загрузки. См. консоль.", "error", 0);
             }
         };
-        console.log("Выполнение скрипта завершено. v9.69 (Глобальный Таймер UI Update)");
+        console.log("Выполнение скрипта завершено. v9.70+Firebase");
     </script>
 </body>
 </html>
